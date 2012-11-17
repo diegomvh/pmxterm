@@ -1,0 +1,11 @@
+Metadata-Version: 1.0
+Name: pmxterm
+Version: 0.1
+Summary: Simple terminal/console widget for PyQt4 with vt100 support and pyzmq backend comunication
+Home-page: 
+Author: Diego van Haaster
+Author-email: diegomvh@gmail.com
+License: GPL2
+Description: UNKNOWN
+Keywords: pyqt pyqt4 pyzmq console terminal shell vt100 widget
+Platform: UNKNOWN
