@@ -111,7 +111,7 @@ class TerminalWidget(QtGui.QWidget):
         self.execute(command)
 
         
-    def execute(self, command="/bin/bash"):
+    def execute(self, command):
         self._session = Session(parent = self)
         self._session.readyRead.connect(self._session_readyRead)
         self._session.start(command)

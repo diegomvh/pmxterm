@@ -68,8 +68,8 @@ def parse():
     """
     # Setting up argument parses
     parser = argparse.ArgumentParser(description=DESCRIPTION)
-    parser.add_argument('-r', metavar='<rep>', dest='rep', type=str, default="tcp://127.0.0.1:0", help=HELP['rep'])
-    parser.add_argument('-p', metavar='<pub>', dest='pub', type=str, default="tcp://127.0.0.1:0", help=HELP['pub'])
+    parser.add_argument('-r', metavar='<rep>', dest='rep', type=str, default="ipc:///tmp/pmxrep", help=HELP['rep'])
+    parser.add_argument('-p', metavar='<pub>', dest='pub', type=str, default="ipc:///tmp/pmxpub", help=HELP['pub'])
     # Parsing and hacks
     args = parser.parse_args()
     return args
@@ -77,15 +77,9 @@ def parse():
 def main(rep_addr, pub_addr):
     queue = Queue()
     
-    #rep_addr = "tcp://127.0.0.1:60835"
-    #rep_addr = "ipc:///tmp/pmxrep"
-    
     # Start the multiplexer
     mproc = Process(target=worker_multiplexer, args=(queue, rep_addr))
     mproc.start()
-    
-    #pub_addr = "tcp://127.0.0.1:57578"
-    #pub_addr = "ipc:///tmp/pmxpub"
     
     # Start the notifier
     nproc = Process(target=worker_notifier, args=(queue, pub_addr))
