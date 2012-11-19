@@ -5,9 +5,12 @@ import sys
 import zmq
 import argparse
 import tempfile
+import re
 from multiprocessing import Process, Queue
 
 from multiplexer import Multiplexer
+
+CONNECTION = re.compile(r"(?P<protocol>.*)\:\/\/(?P<host>[^:/ ]+).?(?P<port>[0-9]*)")
 
 # ===========
 # = Workers =
@@ -18,13 +21,14 @@ def worker_multiplexer(queue, addr):
     context = zmq.Context()
     zrep = context.socket(zmq.REP)
     
-    if ':' not in addr:
-        addr = "%s:%d" % (addr, zrep.bind_to_random_port(addr))
+    parts = match.goupdict().copy()
+    if not parts["port"]:
+        parts["port"] = zrep.bind_to_random_port(addr))
     else:
         zrep.bind(addr)
-
-    queue.put(addr)
-
+    
+    queue.put("%{protocol}s://%{host}s:%{port}d" % addr)
+    
     while True:
         pycmd = zrep.recv_pyobj()
         method = getattr(multiplexer, pycmd["command"], None)
@@ -38,12 +42,17 @@ def worker_notifier(queue, addr):
     context = zmq.Context()
     zpub = context.socket(zmq.PUB)
     
-    if ':' not in addr:
-        addr = "%s:%d" % (addr, zpub.bind_to_random_port(addr))
+    match = CONNECTION.match(addr):
+    if not match:
+        return
+
+    parts = match.goupdict().copy()
+    if not parts["port"]:
+        parts["port"] = zpub.bind_to_random_port(addr))
     else:
         zpub.bind(addr)
     
-    queue.put(addr)
+    queue.put("%{protocol}s://%{host}s:%{port}d" % addr)
     
     while True:
         data = queue.get()
