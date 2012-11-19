@@ -44,9 +44,9 @@ class TabbedTerminal(QTabWidget):
 
 	
 	def new_terminal(self):
-	    #connection =
-	    #notifier = 
-		term = TerminalWidget(connection = connection, notifier = notifier, parent = self, command = "irb")
+		connection = "tcp://10.0.0.1:59085"
+		notifier = "tcp://10.0.0.1:63225"
+		term = TerminalWidget(connection = connection, notifier = notifier, parent = self, command = "bash")
 		term.session_closed.connect(self._on_session_closed)
 		self.addTab(term, "Terminal")
 		self._terms.append(term)

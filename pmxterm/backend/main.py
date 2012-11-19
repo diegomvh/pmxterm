@@ -25,13 +25,13 @@ def worker_multiplexer(queue, addr):
     if not match:
         return
 
-    parts = match.groupdict().copy()
+    parts = match.groupdict()
     if not parts["port"] and parts["protocol"] in ["tcp", "udp"]:
         parts["port"] = zrep.bind_to_random_port(addr)
+        queue.put("%(protocol)s://%(host)s:%(port)s" % parts)
     else:
         zrep.bind(addr)
-    
-    queue.put("%(protocol)s://%(host)s:%(port)s" % parts)
+        queue.put(addr)
     
     while True:
         pycmd = zrep.recv_pyobj()
@@ -53,10 +53,10 @@ def worker_notifier(queue, addr):
     parts = match.groupdict().copy()
     if not parts["port"] and parts["protocol"] in ["tcp", "udp"]:
         parts["port"] = zpub.bind_to_random_port(addr)
+        queue.put("%(protocol)s://%(host)s:%(port)s" % parts)
     else:
         zpub.bind(addr)
-    
-    queue.put("%(protocol)s://%(host)s:%(port)s" % parts)
+        queue.put(addr)
     
     while True:
         data = queue.get()
@@ -82,7 +82,7 @@ def parse_arguments():
     """
     # Setting up argument parses
     parser = argparse.ArgumentParser(description=DESCRIPTION)
-    parser.add_argument('-t', metavar='<type>', dest='type', type=str, default="tcp", help=HELP['type'])
+    parser.add_argument('-t', metavar='<type>', dest='type', type=str, default="ipc", help=HELP['type'])
     parser.add_argument('-a', metavar='<address>', dest='address', type=str, help=HELP['address'])
     parser.add_argument('-pp', metavar='<pub_port>', dest='pub_port', type=int, help=HELP['pub_port'])
     parser.add_argument('-rp', metavar='<rep_port>', dest='rep_port', type=int, help=HELP['rep_port'])
