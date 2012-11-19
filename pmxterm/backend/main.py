@@ -21,6 +21,10 @@ def worker_multiplexer(queue, addr):
     context = zmq.Context()
     zrep = context.socket(zmq.REP)
     
+    match = CONNECTION.match(addr)
+    if not match:
+        return
+
     parts = match.goupdict().copy()
     if not parts["port"]:
         parts["port"] = zrep.bind_to_random_port(addr)
@@ -42,7 +46,7 @@ def worker_notifier(queue, addr):
     context = zmq.Context()
     zpub = context.socket(zmq.PUB)
     
-    match = CONNECTION.match(addr):
+    match = CONNECTION.match(addr)
     if not match:
         return
 
