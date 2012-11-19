@@ -31,7 +31,7 @@ def worker_multiplexer(queue, addr):
     else:
         zrep.bind(addr)
     
-    queue.put("%{protocol}s://%{host}s:%{port}d" % addr)
+    queue.put("%(protocol)s://%(host)s:%(port)d" % addr)
     
     while True:
         pycmd = zrep.recv_pyobj()
@@ -56,7 +56,7 @@ def worker_notifier(queue, addr):
     else:
         zpub.bind(addr)
     
-    queue.put("%{protocol}s://%{host}s:%{port}d" % addr)
+    queue.put("%(protocol)s://%(host)s:%(port)d" % addr)
     
     while True:
         data = queue.get()
