@@ -25,7 +25,7 @@ def worker_multiplexer(queue, addr):
     if not match:
         return
 
-    parts = match.goupdicts().copy()
+    parts = match.groupdict().copy()
     if not parts["port"]:
         parts["port"] = zrep.bind_to_random_port(addr)
     else:
@@ -50,7 +50,7 @@ def worker_notifier(queue, addr):
     if not match:
         return
 
-    parts = match.goupdicts().copy()
+    parts = match.groupdict().copy()
     if not parts["port"]:
         parts["port"] = zpub.bind_to_random_port(addr)
     else:
