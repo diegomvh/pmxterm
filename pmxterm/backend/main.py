@@ -4,6 +4,7 @@
 import sys
 import zmq
 import argparse
+import tempfile
 from multiprocessing import Process, Queue
 
 from multiplexer import Multiplexer
@@ -17,8 +18,7 @@ def worker_multiplexer(queue, addr):
     context = zmq.Context()
     zrep = context.socket(zmq.REP)
     
-    if addr.endswith(":0"):
-        addr = addr[:-2]
+    if ':' not in addr:
         addr = "%s:%d" % (addr, zrep.bind_to_random_port(addr))
     else:
         zrep.bind(addr)
@@ -38,8 +38,7 @@ def worker_notifier(queue, addr):
     context = zmq.Context()
     zpub = context.socket(zmq.PUB)
     
-    if addr.endswith(":0"):
-        addr = addr[:-2]
+    if ':' not in addr:
         addr = "%s:%d" % (addr, zpub.bind_to_random_port(addr))
     else:
         zpub.bind(addr)
@@ -58,36 +57,63 @@ DESCRIPTION = 'pmxterm backend.'
 
 # Dictionary of command-line help messages
 HELP = {
-    'rep': "address for REQ/REP zmq socket",
-    'pub': "address for PUB/SUB zmq socket"
+    'rep_port': 'Port number of the request/responce socket',
+    'pub_port': 'Port number of the publisher socket',
+    'type': 'The zmq socket type "ipc", "tcp"',
+    'address': 'TCP and UDP bind address'
 }
 
-def parse():
+def parse_arguments():
     """Creates argument parser for parsing command-line arguments. Returns parsed
     arguments in a form of a namespace.
     """
     # Setting up argument parses
     parser = argparse.ArgumentParser(description=DESCRIPTION)
-    parser.add_argument('-r', metavar='<rep>', dest='rep', type=str, default="ipc:///tmp/pmxrep", help=HELP['rep'])
-    parser.add_argument('-p', metavar='<pub>', dest='pub', type=str, default="ipc:///tmp/pmxpub", help=HELP['pub'])
-    # Parsing and hacks
+    parser.add_argument('-t', metavar='<type>', dest='type', type=str, default="tcp", help=HELP['type'])
+    parser.add_argument('-a', metavar='<address>', dest='address', type=str, help=HELP['address'])
+    parser.add_argument('-pp', metavar='<pub_port>', dest='pub_port', type=int, help=HELP['pub_port'])
+    parser.add_argument('-rp', metavar='<rep_port>', dest='rep_port', type=int, help=HELP['rep_port'])
     args = parser.parse_args()
+    if args.type == "ipc" and args.address is not None:
+        parser.print_help()
+        sys.exit()
     return args
 
-def main(rep_addr, pub_addr):
-    queue = Queue()
+def get_addresses(args):
+    pub_addr = rep_addr = None
+    if args.type == "ipc":
+        pub_addr = "ipc://%s" % tempfile.mkstemp(prefix="pmx")[1]
+        rep_addr = "ipc://%s" % tempfile.mkstemp(prefix="pmx")[1]
+    elif args.type == "tcp":
+        address = args.address if args.address is not None else 'localhost'
+        pub_addr = "tcp://%s" % address
+        rep_addr = "tcp://%s" % address
+        if args.pub_port is not None:
+            pub_addr += ":%i" % args.pub_port
+        if args.rep_port is not None:
+            rep_addr += ":%i" % args.rep_port
+    return rep_addr, pub_addr
+
+def main(args):
     
-    # Start the multiplexer
-    mproc = Process(target=worker_multiplexer, args=(queue, rep_addr))
-    mproc.start()
+    rep_addr, pub_addr = get_addresses(args)
     
-    # Start the notifier
-    nproc = Process(target=worker_notifier, args=(queue, pub_addr))
-    nproc.start()
+    if rep_addr and pub_addr:
+        queue = Queue()
     
-    a1, a2 = queue.get(), queue.get()
-    print a1, a2
+        # Start the multiplexer
+        mproc = Process(target=worker_multiplexer, args=(queue, rep_addr))
+        mproc.start()
+        
+        # Start the notifier
+        nproc = Process(target=worker_notifier, args=(queue, pub_addr))
+        nproc.start()
+        
+        a1, a2 = queue.get(), queue.get()
+        print a1, a2
+    else:    
+        print "Address error, please read help"
 
 if __name__ == "__main__":
-    args = parse()
-    main(args.rep, args.pub)
+    args = parse_arguments()
+    main(args)

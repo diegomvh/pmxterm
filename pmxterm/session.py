@@ -23,12 +23,11 @@ class Session(QtCore.QObject):
         return Session._sock.recv_pyobj()
     
 
-    def __init__(self, parent = None, cmd=None, width=80, height=24):
+    def __init__(self, connection, notifier, parent = None, width=80, height=24):
         QtCore.QObject.__init__(self, parent)
         if not Session._sock:
             Session._sock = ZmqSocket(zmq.REQ, self)
-            Session._sock.connect("ipc:///tmp/pmxrep")
-        self.cmd = cmd
+            Session._sock.connect(connection)
         
         #Session Id
         self._session_id = "%s-%s" % (time.time(), id(self))
@@ -37,7 +36,7 @@ class Session(QtCore.QObject):
         self._subs = ZmqSocket(zmq.SUB, self)
         self._subs.readyRead.connect(self.subs_readyRead)
         self._subs.subscribe(self._session_id)
-        self._subs.connect("ipc:///tmp/pmxpub")
+        self._subs.connect(notifier)
         
         self._width = width
         self._height = height
@@ -56,9 +55,9 @@ class Session(QtCore.QObject):
             self.keepalive()
 
 
-    def start(self, cmd=None):
+    def start(self, command):
         return self.__send("proc_keepalive",
-            [self._session_id, self._width, self._height, cmd or self.cmd])
+            [self._session_id, self._width, self._height, command])
 
     def close(self):
         return self.__send("proc_bury", [self._session_id])

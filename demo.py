@@ -16,7 +16,7 @@ class TabbedTerminal(QTabWidget):
 	
 	def __init__(self, parent=None):
 		super(TabbedTerminal, self).__init__(parent)
-		self.proc_info = ProcessInfo()
+		#self.proc_info = ProcessInfo()
 		self.setTabPosition(QTabWidget.South)
 		self._new_button = QPushButton(self)
 		self._new_button.setText("New")
@@ -44,7 +44,9 @@ class TabbedTerminal(QTabWidget):
 
 	
 	def new_terminal(self):
-		term = TerminalWidget(parent = self, command = "irb")
+	    #connection =
+	    #notifier = 
+		term = TerminalWidget(connection = connection, notifier = notifier, parent = self, command = "irb")
 		term.session_closed.connect(self._on_session_closed)
 		self.addTab(term, "Terminal")
 		self._terms.append(term)
@@ -62,17 +64,18 @@ class TabbedTerminal(QTabWidget):
 			return
 		idx = self.indexOf(term)
 		pid = term.pid()
-		self.proc_info.update()
-		child_pids = [pid] + self.proc_info.all_children(pid)
-		for pid in reversed(child_pids):
-			cwd = self.proc_info.cwd(pid)
-			if cwd:
-				break
-		try:
-			cmd = self.proc_info.commands[pid]
-			title = "%s: %s" % (os.path.basename(cwd), cmd)
-		except:
-			title = "Terminal"
+		#self.proc_info.update()
+		#child_pids = [pid] + self.proc_info.all_children(pid)
+		#for pid in reversed(child_pids):
+		#	cwd = self.proc_info.cwd(pid)
+		#	if cwd:
+		#		break
+		#try:
+		#	cmd = self.proc_info.commands[pid]
+		#	title = "%s: %s" % (os.path.basename(cwd), cmd)
+		#except:
+		#	title = "Terminal"
+		title = "Terminal"
 		self.setTabText(idx, title)
 		self.setWindowTitle(title)
 

@@ -85,7 +85,8 @@ class TerminalWidget(QtGui.QWidget):
 
 
     def __init__(self, parent=None, command="/bin/bash", 
-                 font_name="Monospace", font_size=18):
+                    connection = None, notifier = None,
+                    font_name="Monospace", font_size=18):
         super(TerminalWidget, self).__init__(parent)
         self.parent().setTabOrder(self, self)
         self.setFocusPolicy(QtCore.Qt.WheelFocus)
@@ -108,11 +109,9 @@ class TerminalWidget(QtGui.QWidget):
         self._selection = None
         self._clipboard = QtGui.QApplication.clipboard()
         QtGui.QApplication.instance().lastWindowClosed.connect(Session.close_all)
-        self.execute(command)
-
         
-    def execute(self, command):
-        self._session = Session(parent = self)
+        # Create session
+        self._session = Session(connection, notifier, parent = self)
         self._session.readyRead.connect(self._session_readyRead)
         self._session.start(command)
         
