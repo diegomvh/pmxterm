@@ -26,12 +26,12 @@ def worker_multiplexer(queue, addr):
         return
 
     parts = match.groupdict().copy()
-    if not parts["port"]:
+    if not parts["port"] and parts["protocol"] in ["tcp", "udp"]:
         parts["port"] = zrep.bind_to_random_port(addr)
     else:
         zrep.bind(addr)
     
-    queue.put("%(protocol)s://%(host)s:%(port)d" % addr)
+    queue.put("%(protocol)s://%(host)s:%(port)s" % addr)
     
     while True:
         pycmd = zrep.recv_pyobj()
@@ -51,12 +51,12 @@ def worker_notifier(queue, addr):
         return
 
     parts = match.groupdict().copy()
-    if not parts["port"]:
+    if not parts["port"] and parts["protocol"] in ["tcp", "udp"]:
         parts["port"] = zpub.bind_to_random_port(addr)
     else:
         zpub.bind(addr)
     
-    queue.put("%(protocol)s://%(host)s:%(port)d" % addr)
+    queue.put("%(protocol)s://%(host)s:%(port)s" % addr)
     
     while True:
         data = queue.get()
