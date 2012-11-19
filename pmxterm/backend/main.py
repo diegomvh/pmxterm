@@ -97,7 +97,7 @@ def get_addresses(args):
 def main(args):
     
     rep_addr, pub_addr = get_addresses(args)
-    
+    print rep_addr, pub_addr
     if rep_addr and pub_addr:
         queue = Queue()
     
