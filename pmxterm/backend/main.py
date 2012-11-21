@@ -7,9 +7,10 @@ import argparse
 import tempfile
 import re
 from urlparse import urlparse
-from multiprocessing import Process, Queue
 
+from multiprocessing import Process, Queue
 from multiplexer import Multiplexer
+from utils import get_home_dir
 
 # ===========
 # = Workers =
@@ -30,7 +31,7 @@ def worker_multiplexer(queue, addr):
     else:
 	addr = "%s://%s" % (addr.scheme, addr.path)
         zrep.bind(addr)
-    queue.put(addr)
+    queue.put(("rep_addr", addr))
     
     while True:
         pycmd = zrep.recv_pyobj()
@@ -55,7 +56,7 @@ def worker_notifier(queue, addr):
     else:
 	addr = "%s://%s" % (addr.scheme, addr.path)
         zpub.bind(addr)
-    queue.put(addr)
+    queue.put(("pub_addr", addr))
     
     while True:
         data = queue.get()
@@ -121,9 +122,9 @@ def main(args):
         nproc = Process(target=worker_notifier, args=(queue, pub_addr))
         nproc.start()
         
-        a1, a2 = queue.get(), queue.get()
-        print a1, a2
-    else:    
+        info = dict([queue.get(), queue.get()])
+        print info
+    else:
         print "Address error, please read help"
 
 if __name__ == "__main__":

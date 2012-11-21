@@ -14,97 +14,97 @@ from pmxterm.session import Session
 
 class TabbedTerminal(QTabWidget):
 
-	
-	def __init__(self, parent=None):
-		super(TabbedTerminal, self).__init__(parent)
-		#self.proc_info = ProcessInfo()
-		self.setTabPosition(QTabWidget.South)
-		self._new_button = QPushButton(self)
-		self._new_button.setText("New")
-		self._new_button.clicked.connect(self.new_terminal)
-		self.setCornerWidget(self._new_button)
-		self.setTabsClosable(True)
-		self.setMovable(True)
-		self.setWindowTitle("Terminal")
-		self.resize(800, 600)
-		self._terms = []
-		self.tabCloseRequested[int].connect(self._on_close_request)
-		self.currentChanged[int].connect(self._on_current_changed)
-		QTimer.singleShot(0, self.new_terminal) # create lazy on idle
-		#self.startTimer(1000)
+    
+    def __init__(self, parent=None):
+        super(TabbedTerminal, self).__init__(parent)
+        #self.proc_info = ProcessInfo()
+        self.setTabPosition(QTabWidget.South)
+        self._new_button = QPushButton(self)
+        self._new_button.setText("New")
+        self._new_button.clicked.connect(self.new_terminal)
+        self.setCornerWidget(self._new_button)
+        self.setTabsClosable(True)
+        self.setMovable(True)
+        self.setWindowTitle("Terminal")
+        self.resize(800, 600)
+        self._terms = []
+        self.tabCloseRequested[int].connect(self._on_close_request)
+        self.currentChanged[int].connect(self._on_current_changed)
+        QTimer.singleShot(0, self.new_terminal) # create lazy on idle
+        #self.startTimer(1000)
 
 
-	def _on_close_request(self, idx):
-		term = self.widget(idx)
-		term.stop()
-		
-			
-	def _on_current_changed(self, idx):
-		term = self.widget(idx)
-		self._update_title(term)
+    def _on_close_request(self, idx):
+        term = self.widget(idx)
+        term.stop()
+        
+            
+    def _on_current_changed(self, idx):
+        term = self.widget(idx)
+        self._update_title(term)
 
-	
-	def new_terminal(self):
+    
+    def new_terminal(self):
         # Create session
-        connection = "tcp://10.0.0.1:59085"
-		notifier = "tcp://10.0.0.1:63225"
-		
+        connection = "tcp://10.0.0.1:62353"
+        notifier = "tcp://10.0.0.1:58737"
+        
         session = Session(connection, notifier, parent = self)
-		term = TerminalWidget(parent = self)
-		term.setSession(session)
-		term.session_closed.connect(self._on_session_closed)
-		self.addTab(term, "Terminal")
-		self._terms.append(term)
-		self.setCurrentWidget(term)
-		
-		session.start("/bin/bash")
-		term.setFocus()
+        term = TerminalWidget(parent = self)
+        term.setSession(session)
+        term.session_closed.connect(self._on_session_closed)
+        self.addTab(term, "Terminal")
+        self._terms.append(term)
+        self.setCurrentWidget(term)
+        
+        session.start("/bin/bash")
+        term.setFocus()
 
-		
-	def timerEvent(self, event):
-		self._update_title(self.currentWidget())
+        
+    def timerEvent(self, event):
+        self._update_title(self.currentWidget())
 
 
-	def _update_title(self, term):
-		if term is None:
-			self.setWindowTitle("Terminal")
-			return
-		idx = self.indexOf(term)
-		pid = term.pid()
-		#self.proc_info.update()
-		#child_pids = [pid] + self.proc_info.all_children(pid)
-		#for pid in reversed(child_pids):
-		#	cwd = self.proc_info.cwd(pid)
-		#	if cwd:
-		#		break
-		#try:
-		#	cmd = self.proc_info.commands[pid]
-		#	title = "%s: %s" % (os.path.basename(cwd), cmd)
-		#except:
-		#	title = "Terminal"
-		title = "Terminal"
-		self.setTabText(idx, title)
-		self.setWindowTitle(title)
+    def _update_title(self, term):
+        if term is None:
+            self.setWindowTitle("Terminal")
+            return
+        idx = self.indexOf(term)
+        pid = term.pid()
+        #self.proc_info.update()
+        #child_pids = [pid] + self.proc_info.all_children(pid)
+        #for pid in reversed(child_pids):
+        #    cwd = self.proc_info.cwd(pid)
+        #    if cwd:
+        #        break
+        #try:
+        #    cmd = self.proc_info.commands[pid]
+        #    title = "%s: %s" % (os.path.basename(cwd), cmd)
+        #except:
+        #    title = "Terminal"
+        title = "Terminal"
+        self.setTabText(idx, title)
+        self.setWindowTitle(title)
 
-	
-	def _on_session_closed(self):
-		term = self.sender()
-		try:
-			self._terms.remove(term)
-		except:
-			pass
-		self.removeTab(self.indexOf(term))
-		widget = self.currentWidget()
-		if widget:
-			widget.setFocus()
-		if self.count() == 0:
-			self.new_terminal()
+    
+    def _on_session_closed(self):
+        term = self.sender()
+        try:
+            self._terms.remove(term)
+        except:
+            pass
+        self.removeTab(self.indexOf(term))
+        widget = self.currentWidget()
+        if widget:
+            widget.setFocus()
+        if self.count() == 0:
+            self.new_terminal()
 
 
 
 if __name__ == "__main__":
-	app = QApplication(sys.argv)
-	win = TabbedTerminal()
-	win.show()
-	app.exec_()
+    app = QApplication(sys.argv)
+    win = TabbedTerminal()
+    win.show()
+    app.exec_()
 
