@@ -8,6 +8,7 @@ import argparse
 import tempfile
 import re
 import json
+import stat
 from urlparse import urlparse
 
 from multiprocessing import Process, Queue
