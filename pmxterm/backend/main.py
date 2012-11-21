@@ -126,7 +126,7 @@ def main(args):
         nproc.start()
         
         info = dict([queue.get(), queue.get()])
-        descriptor, name = tempfile.mkstemp(prefix="backend-", dir = get_pmxterm_dir(), text = True)
+        descriptor, name = tempfile.mkstemp(prefix="backend-", suffix=".json", dir = get_pmxterm_dir(), text = True)
         tempFile = os.fdopen(descriptor, 'w+')
         tempFile.write(json.dumps(info))
         tempFile.close()
