@@ -10,7 +10,7 @@ from urlparse import urlparse
 
 from multiprocessing import Process, Queue
 from multiplexer import Multiplexer
-from utils import get_home_dir
+from utils import get_pmxterm_dir
 
 # ===========
 # = Workers =
@@ -123,6 +123,7 @@ def main(args):
         nproc.start()
         
         info = dict([queue.get(), queue.get()])
+        print tempfile.mkstemp(prefix="pmx", directory = get_pmxterm_dir()
         print info
     else:
         print "Address error, please read help"

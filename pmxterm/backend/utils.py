@@ -55,6 +55,12 @@ def get_home_dir():
         return path
     else:
         raise RuntimeError('Please define environment variable $HOME')
-        
+
+def get_pmxterm_dir():
+    path = os.path.join(get_home_dir(), ".config", "pmxterm")
+    if not os.path.exists(path):
+        os.makedirs(path)
+    return path
+
 if __name__ == '__main__':
     print get_home_dir()
