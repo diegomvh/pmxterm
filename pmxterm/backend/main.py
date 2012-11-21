@@ -6,11 +6,10 @@ import zmq
 import argparse
 import tempfile
 import re
+from urlparse import urlparse
 from multiprocessing import Process, Queue
 
 from multiplexer import Multiplexer
-
-CONNECTION = re.compile(r"(?P<protocol>.*)\:\/\/(?P<host>[^:/ ]+).?(?P<port>[0-9]*)")
 
 # ===========
 # = Workers =
@@ -21,17 +20,14 @@ def worker_multiplexer(queue, addr):
     context = zmq.Context()
     zrep = context.socket(zmq.REP)
     
-    match = CONNECTION.match(addr)
-    if not match:
-        return
-
-    parts = match.groupdict()
-    if not parts["port"] and parts["protocol"] in ["tcp", "udp"]:
-        parts["port"] = zrep.bind_to_random_port(addr)
-        queue.put("%(protocol)s://%(host)s:%(port)s" % parts)
+    if not addr.port and addr.scheme in ["tcp", "udp"]:
+        port = zrep.bind_to_random_port(addr)
+        queue.put("%s://%s:%s" % addr.scheme, addr.netloc, port)
+    elif addr.scheme == "ipc":
+        zrep.bind(addr.geturl())
+        queue.put(addr.geturl())
     else:
-        zrep.bind(addr)
-        queue.put(addr)
+        return
     
     while True:
         pycmd = zrep.recv_pyobj()
@@ -46,17 +42,14 @@ def worker_notifier(queue, addr):
     context = zmq.Context()
     zpub = context.socket(zmq.PUB)
     
-    match = CONNECTION.match(addr)
-    if not match:
-        return
-
-    parts = match.groupdict().copy()
-    if not parts["port"] and parts["protocol"] in ["tcp", "udp"]:
-        parts["port"] = zpub.bind_to_random_port(addr)
-        queue.put("%(protocol)s://%(host)s:%(port)s" % parts)
+    if not addr.port and addr.scheme in ["tcp", "udp"]:
+        port = zpub.bind_to_random_port(addr)
+        queue.put("%s://%s:%s" % addr.scheme, addr.netloc, port)
+    elif addr.scheme == "ipc":
+        zpub.bind(addr.geturl())
+        queue.put(addr.geturl())
     else:
-        zpub.bind(addr)
-        queue.put(addr)
+        return
     
     while True:
         data = queue.get()
@@ -105,7 +98,7 @@ def get_addresses(args):
             pub_addr += ":%i" % args.pub_port
         if args.rep_port is not None:
             rep_addr += ":%i" % args.rep_port
-    return rep_addr, pub_addr
+    return urlparse(rep_addr), urlparse(pub_addr)
 
 def main(args):
     

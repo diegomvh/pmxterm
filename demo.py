@@ -8,6 +8,7 @@ from PyQt4.QtGui import QApplication, QTabWidget, QPushButton
 
 from pmxterm import TerminalWidget
 from pmxterm.procinfo import ProcessInfo
+from pmxterm.session import Session
 
 
 
@@ -44,13 +45,19 @@ class TabbedTerminal(QTabWidget):
 
 	
 	def new_terminal(self):
-		connection = "tcp://10.0.0.1:59085"
+        # Create session
+        connection = "tcp://10.0.0.1:59085"
 		notifier = "tcp://10.0.0.1:63225"
-		term = TerminalWidget(connection = connection, notifier = notifier, parent = self, command = "bash")
+		
+        session = Session(connection, notifier, parent = self)
+		term = TerminalWidget(parent = self)
+		term.setSession(session)
 		term.session_closed.connect(self._on_session_closed)
 		self.addTab(term, "Terminal")
 		self._terms.append(term)
 		self.setCurrentWidget(term)
+		
+		session.start("/bin/bash")
 		term.setFocus()
 
 		
