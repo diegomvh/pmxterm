@@ -9,6 +9,7 @@ import tempfile
 import re
 import json
 import stat
+import signal
 from urlparse import urlparse
 
 from multiprocessing import Process, Queue
@@ -34,7 +35,7 @@ def worker_multiplexer(queue, addr):
     else:
 	addr = "%s://%s" % (addr.scheme, addr.path)
         zrep.bind(addr)
-    queue.put(("rep_addr", addr))
+    queue.put(("shell_address", addr))
     
     while True:
         pycmd = zrep.recv_pyobj()
@@ -59,7 +60,7 @@ def worker_notifier(queue, addr):
     else:
 	addr = "%s://%s" % (addr.scheme, addr.path)
         zpub.bind(addr)
-    queue.put(("pub_addr", addr))
+    queue.put(("pub_address", addr))
     
     while True:
         data = queue.get()
@@ -110,29 +111,42 @@ def get_addresses(args):
             rep_addr += ":%i" % args.rep_port
     return urlparse(rep_addr), urlparse(pub_addr)
 
+MPROC = NPROC = CONNECTION_FILE = None
+
+def signal_handler(signal, frame):
+    global MPROC, NPROC
+    MPROC.terminate()
+    NPROC.terminate()
+    os.unlink(CONNECTION_FILE)
+    sys.exit(0)
+
+
 def main(args):
-    
+    global MPROC, NPROC, CONNECTION_FILE
     rep_addr, pub_addr = get_addresses(args)
     
     if rep_addr and pub_addr:
         queue = Queue()
     
         # Start the multiplexer
-        mproc = Process(target=worker_multiplexer, args=(queue, rep_addr))
-        mproc.start()
+        MPROC = Process(target=worker_multiplexer, args=(queue, rep_addr))
+        MPROC.start()
         
         # Start the notifier
-        nproc = Process(target=worker_notifier, args=(queue, pub_addr))
-        nproc.start()
+        NPROC = Process(target=worker_notifier, args=(queue, pub_addr))
+        NPROC.start()
         
         info = dict([queue.get(), queue.get()])
-        descriptor, name = tempfile.mkstemp(prefix="backend-", suffix=".json", dir = get_pmxterm_dir(), text = True)
+        descriptor, CONNECTION_FILE = tempfile.mkstemp(prefix="backend-", suffix=".json", dir = get_pmxterm_dir(), text = True)
         tempFile = os.fdopen(descriptor, 'w+')
         tempFile.write(json.dumps(info))
         tempFile.close()
-        os.chmod(name, stat.S_IREAD | stat.S_IWRITE)
-        print "To connect another client to this backend, use:"
-        print "--existing %s" % name
+        os.chmod(CONNECTION_FILE, stat.S_IREAD | stat.S_IWRITE)
+        print CONNECTION_FILE
+        print info.items()
+        
+        #Install signal handler
+        signal.signal(signal.SIGINT, signal_handler)
     else:
         print "Address error, please read help"
 
