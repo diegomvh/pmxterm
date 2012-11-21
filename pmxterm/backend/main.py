@@ -20,6 +20,7 @@ def worker_multiplexer(queue, addr):
     context = zmq.Context()
     zrep = context.socket(zmq.REP)
     
+    print addr
     if not addr.port and addr.scheme in ["tcp", "udp"]:
         port = zrep.bind_to_random_port(addr)
         queue.put("%s://%s:%s" % addr.scheme, addr.netloc, port)
@@ -42,6 +43,7 @@ def worker_notifier(queue, addr):
     context = zmq.Context()
     zpub = context.socket(zmq.PUB)
     
+    print addr
     if not addr.port and addr.scheme in ["tcp", "udp"]:
         port = zpub.bind_to_random_port(addr)
         queue.put("%s://%s:%s" % addr.scheme, addr.netloc, port)
