@@ -123,8 +123,13 @@ def main(args):
         nproc.start()
         
         info = dict([queue.get(), queue.get()])
-        print tempfile.mkstemp(prefix="pmx", directory = get_pmxterm_dir()
-        print info
+        descriptor, name = tempfile.mkstemp(prefix="backend-", directory = get_pmxterm_dir())
+        tempFile = os.fdopen(descriptor, 'w+')
+        tempFile.write(json.dumps(info))
+        tempFile.close()
+        os.chmod(name, stat.S_IREAD | stat.S_IWRITE)
+        print "To connect another client to this backend, use:"
+        print "--existing %s" % name
     else:
         print "Address error, please read help"
 
