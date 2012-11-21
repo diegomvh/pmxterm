@@ -20,15 +20,17 @@ def worker_multiplexer(queue, addr):
     context = zmq.Context()
     zrep = context.socket(zmq.REP)
     
-    print addr
     if not addr.port and addr.scheme in ["tcp", "udp"]:
+	addr = "%s://%s" % (addr.scheme, addr.netloc)
         port = zrep.bind_to_random_port(addr)
-        queue.put("%s://%s:%s" % addr.scheme, addr.netloc, port)
-    elif addr.scheme == "ipc":
-        zrep.bind(addr.geturl())
-        queue.put(addr.geturl())
+	addr = "%s:%d" % (addr, port)
+    elif addr.port and addr.scheme in ["tcp", "udp"]:
+	addr = "%s://%s" % (addr.scheme, addr.netloc)
+	zrep.bind(addr)
     else:
-        return
+	addr = "%s://%s" % (addr.scheme, addr.path)
+        zrep.bind(addr)
+    queue.put(addr)
     
     while True:
         pycmd = zrep.recv_pyobj()
@@ -43,15 +45,17 @@ def worker_notifier(queue, addr):
     context = zmq.Context()
     zpub = context.socket(zmq.PUB)
     
-    print addr
     if not addr.port and addr.scheme in ["tcp", "udp"]:
+	addr = "%s://%s" % (addr.scheme, addr.netloc)
         port = zpub.bind_to_random_port(addr)
-        queue.put("%s://%s:%s" % addr.scheme, addr.netloc, port)
-    elif addr.scheme == "ipc":
-        zpub.bind(addr.geturl())
-        queue.put(addr.geturl())
+	addr = "%s:%d" % (addr, port)
+    elif addr.port and addr.scheme in ["tcp", "udp"]:
+	addr = "%s://%s" % (addr.scheme, addr.netloc)
+	zpub.bind(addr)
     else:
-        return
+	addr = "%s://%s" % (addr.scheme, addr.path)
+        zpub.bind(addr)
+    queue.put(addr)
     
     while True:
         data = queue.get()
