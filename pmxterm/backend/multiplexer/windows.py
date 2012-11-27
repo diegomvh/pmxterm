@@ -6,18 +6,22 @@
 
 import sys
 import os
-import fcntl
 import threading
 import time
-import termios
-import pty
 import signal
 import struct
 import select
 import subprocess
+import array
+from multiprocessing import Queue
 
 from vt100 import Terminal
 
+class WinTerminal(Terminal):
+    def __init__(self, w, h):
+        Terminal.__init__(self, w, h)
+        self.vt100_mode_lfnewline = True
+    
 def synchronized(func):
     def wrapper(self, *args, **kwargs):
         try:
@@ -32,63 +36,40 @@ def synchronized(func):
         return result
     return wrapper
 
-
-
-
 class Multiplexer(object):
-
-
-    def __init__(self, queue, cmd="/bin/bash", env_term = "xterm-color", timeout=60*60*24):
-        # Set Linux signal handler
-        if sys.platform in ("linux2", "linux3"):
-            self.sigchldhandler = signal.signal(signal.SIGCHLD, signal.SIG_IGN)
-            
+    def __init__(self, queue, timeout = 60*60*24):
         # Session
         self.session = {}
         self.queue = queue
-        self.cmd = cmd
-        self.env_term = env_term
         self.timeout = timeout
 
-        # Supervisor thread
+        # Supervisor
         self.signal_stop = 0
         self.thread = threading.Thread(target = self.proc_thread)
         self.thread.start()
-
 
     def stop(self):
         # Stop supervisor thread
         self.signal_stop = 1
         self.thread.join()
 
-
     def proc_resize(self, sid, w, h):
-        fd = self.session[sid]['fd']
-        # Set terminal size
-        try:
-            fcntl.ioctl(fd,
-                struct.unpack('i',
-                    struct.pack('I', termios.TIOCSWINSZ)
-                )[0],
-                struct.pack("HHHH", h, w, 0, 0))
-        except (IOError, OSError):
-            pass
         self.session[sid]['term'].set_size(w, h)
         self.session[sid]['w'] = w
         self.session[sid]['h'] = h
 
 
     @synchronized
-    def proc_keepalive(self, sid, w, h, cmd=None):
+    def proc_keepalive(self, sid, w, h, command = None):
         if not sid in self.session:
             # Start a new session
             self.session[sid] = {
                 'state':'unborn',
-                'term':	Terminal(w, h),
+                'term':	WinTerminal(w, h),
                 'time':	time.time(),
                 'w':	w,
                 'h':	h}
-            return self.proc_spawn(sid, cmd)
+            return self.__proc_spawn(sid, command)
         elif self.session[sid]['state'] == 'alive':
             self.session[sid]['time'] = time.time()
             # Update terminal size
@@ -98,50 +79,25 @@ class Multiplexer(object):
         else:
             return False
 
-
-    def proc_spawn(self, sid, cmd=None):
+    def __proc_spawn(self, sid, command):
         # Session
         self.session[sid]['state'] = 'alive'
         w, h = self.session[sid]['w'], self.session[sid]['h']
-        # Fork new process
-        try:
-            pid, fd = pty.fork()
-        except (IOError, OSError):
-            self.session[sid]['state'] = 'dead'
-            return False
-        if pid == 0:
-            cmd = cmd or self.cmd
-            # Safe way to make it work under BSD and Linux
-            try:
-                ls = os.environ['LANG'].split('.')
-            except KeyError:
-                ls = []
-            if len(ls) < 2:
-                ls = ['en_US', 'UTF-8']
-            try:
-                os.putenv('COLUMNS', str(w))
-                os.putenv('LINES', str(h))
-                os.putenv('TERM', self.env_term)
-                os.putenv('PATH', os.environ['PATH'])
-                os.putenv('LANG', ls[0] + '.UTF-8')
-                #os.system(cmd)
-                p = subprocess.Popen(cmd, shell=False)
-                #print "called with subprocess", p.pid
-                child_pid, sts = os.waitpid(p.pid, 0)
-                #print "child_pid", child_pid, sts
-            except (IOError, OSError):
-                pass
-            # self.proc_finish(sid)
-            os._exit(0)
-        else:
-            # Store session vars
-            self.session[sid]['pid'] = pid
-            self.session[sid]['fd'] = fd
-            # Set file control
-            fcntl.fcntl(fd, fcntl.F_SETFL, os.O_NONBLOCK)
-            # Set terminal size
-            self.proc_resize(sid, w, h)
-            return True
+        process = subprocess.Popen(command, shell = True, stdin = subprocess.PIPE, stdout = subprocess.PIPE, stderr = subprocess.PIPE)
+        def enqueue_output(output, queue):
+            while True:
+                data = output.read(1)
+                queue.put(data)
+        queue = Queue()
+        thread = threading.Thread(target=enqueue_output, args=(process.stdout, queue))
+        thread.daemon = True
+        thread.start()
+        self.session[sid]['process'] = process
+        self.session[sid]['thread'] = thread
+        self.session[sid]['queue'] = queue
+        self.session[sid]['pid'] = process.pid
+        self.proc_resize(sid, w, h)
+        return True
 
 
     def proc_waitfordeath(self, sid):
@@ -190,27 +146,17 @@ class Multiplexer(object):
             return False
         elif self.session[sid]['state'] != 'alive':
             return False
-        try:
-            fd = self.session[sid]['fd']
-            d = os.read(fd, 65536)
-            if not d:
-                # Process finished, BSD
-                self.proc_waitfordeath(sid)
-                return False
-        except (IOError, OSError):
-            # Process finished, Linux
-            self.proc_waitfordeath(sid)
-            return False
+        queue = self.session[sid]['queue']
         term = self.session[sid]['term']
-        term.write(d)
-        # Read terminal response
-        d = term.read()
-        if d:
-            try:
-                os.write(fd, d)
-            except (IOError, OSError):
-                return False
-        return True
+        data = ""
+        try:
+            while True:
+                data += queue.get_nowait()
+        except Exception, ex:
+            pass
+        if data:
+            term.write(data)
+        return bool(data)
 
 
     @synchronized
@@ -224,9 +170,11 @@ class Multiplexer(object):
             return False
         try:
             term = self.session[sid]['term']
-            d = term.pipe(d)
-            fd = self.session[sid]['fd']
-            os.write(fd, d)
+            process = self.session[sid]['process']
+            process.stdin.write(term.pipe(d))
+            term.write(d)
+            self.queue.put(sid)
+            process.stdin.flush()
         except (IOError, OSError):
             return False
         return True
@@ -247,38 +195,26 @@ class Multiplexer(object):
         """
         Get alive sessions, bury timed out ones
         """
-        fds = []
-        fd2sid = {}
+        sids = []
         now = time.time()
         for sid in self.session.keys():
             then = self.session[sid]['time']
             if (now - then) > self.timeout:
                 self.proc_bury(sid)
-            else:
-                if self.session[sid]['state'] == 'alive':
-                    fds.append(self.session[sid]['fd'])
-                    fd2sid[self.session[sid]['fd']] = sid
-        return (fds, fd2sid)
-
+            elif 'queue' in self.session[sid] and self.session[sid]['state'] == 'alive':
+                sids.append(sid)
+        return sids
 
     def proc_thread(self):
         """
         Supervisor thread
         """
         while not self.signal_stop:
-            # Read fds
-            (fds, fd2sid) = self.proc_getalive()
-            try:
-                i, o, e = select.select(fds, [], [], 1.0)
-            except (IOError, OSError):
-                i = []
-            for fd in i:
-                sid = fd2sid[fd]
-                self.proc_read(sid)
-                self.session[sid]["changed"] = time.time()
-                self.queue.put(sid)
-            if len(i):
-                time.sleep(0.002)
+            for sid in self.proc_getalive():
+                if self.proc_read(sid):
+                    self.session[sid]["changed"] = time.time()
+                    self.queue.put(sid)
+                    time.sleep(0.002)
         self.proc_buryall()
 
     def is_session_alive(self, sid):
@@ -289,4 +225,3 @@ class Multiplexer(object):
         
     def last_session_change(self, sid):
         return self.session.get(sid, {}).get("changed", None)
-

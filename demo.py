@@ -8,7 +8,7 @@ from PyQt4.QtGui import QApplication, QTabWidget, QPushButton
 
 from pmxterm import TerminalWidget
 from pmxterm.procinfo import ProcessInfo
-from pmxterm.session import Session
+from pmxterm.session import Session, SessionManager
 
 
 
@@ -30,6 +30,8 @@ class TabbedTerminal(QTabWidget):
         self._terms = []
         self.tabCloseRequested[int].connect(self._on_close_request)
         self.currentChanged[int].connect(self._on_current_changed)
+        self.sessionManager = SessionManager(parent = self)
+        self.localBackend = self.sessionManager.addBackend("C:\\Documents and Settings\\dvanhaaster\\.config\\pmxterm\\backend.json")
         QTimer.singleShot(0, self.new_terminal) # create lazy on idle
         #self.startTimer(1000)
 
@@ -46,10 +48,9 @@ class TabbedTerminal(QTabWidget):
     
     def new_terminal(self):
         # Create session
-        connection = "tcp://10.0.0.1:62353"
-        notifier = "tcp://10.0.0.1:58737"
+        # Create session
+        session = self.sessionManager.createSession(self.localBackend)
         
-        session = Session(connection, notifier, parent = self)
         term = TerminalWidget(parent = self)
         term.setSession(session)
         term.session_closed.connect(self._on_session_closed)
@@ -57,7 +58,7 @@ class TabbedTerminal(QTabWidget):
         self._terms.append(term)
         self.setCurrentWidget(term)
         
-        session.start("/bin/bash")
+        session.start("cmd.exe")
         term.setFocus()
 
         

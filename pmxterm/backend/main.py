@@ -9,32 +9,40 @@ import tempfile
 import re
 import json
 import stat
+import signal
 from urlparse import urlparse
 
 from multiprocessing import Process, Queue
 from multiplexer import Multiplexer
+    
 from utils import get_pmxterm_dir
 
 # ===========
 # = Workers =
 # ===========
-def worker_multiplexer(queue, addr):
-    multiplexer = Multiplexer(queue)
+def worker_multiplexer(queue, notifier, addr):
+    multiplexer = Multiplexer(notifier)
     
     context = zmq.Context()
     zrep = context.socket(zmq.REP)
     
-    if not addr.port and addr.scheme in ["tcp", "udp"]:
-	addr = "%s://%s" % (addr.scheme, addr.netloc)
-        port = zrep.bind_to_random_port(addr)
-	addr = "%s:%d" % (addr, port)
-    elif addr.port and addr.scheme in ["tcp", "udp"]:
-	addr = "%s://%s" % (addr.scheme, addr.netloc)
-	zrep.bind(addr)
+    if addr.scheme in ["tcp", "udp"]:
+        port = None
+        try:
+            port = addr.port
+        except:
+            pass
+        if not port:
+            addr = "%s://%s" % (addr.scheme, addr.netloc)
+            port = zrep.bind_to_random_port(addr)
+            addr = "%s:%d" % (addr, port)
+        else:
+	       addr = "%s://%s" % (addr.scheme, addr.netloc)
+	       zrep.bind(addr)
     else:
-	addr = "%s://%s" % (addr.scheme, addr.path)
+        addr = "%s://%s" % (addr.scheme, addr.path)
         zrep.bind(addr)
-    queue.put(("rep_addr", addr))
+    queue.put(("shell_address", addr))
     
     while True:
         pycmd = zrep.recv_pyobj()
@@ -48,18 +56,24 @@ def worker_multiplexer(queue, addr):
 def worker_notifier(queue, addr):
     context = zmq.Context()
     zpub = context.socket(zmq.PUB)
-    
-    if not addr.port and addr.scheme in ["tcp", "udp"]:
-	addr = "%s://%s" % (addr.scheme, addr.netloc)
-        port = zpub.bind_to_random_port(addr)
-	addr = "%s:%d" % (addr, port)
-    elif addr.port and addr.scheme in ["tcp", "udp"]:
-	addr = "%s://%s" % (addr.scheme, addr.netloc)
-	zpub.bind(addr)
+
+    if addr.scheme in ["tcp", "udp"]:
+        port = None
+        try:
+            port = addr.port
+        except:
+            pass
+        if not port:
+            addr = "%s://%s" % (addr.scheme, addr.netloc)
+            port = zpub.bind_to_random_port(addr)
+            addr = "%s:%d" % (addr, port)
+        else:
+	       addr = "%s://%s" % (addr.scheme, addr.netloc)
+	       zpub.bind(addr)
     else:
-	addr = "%s://%s" % (addr.scheme, addr.path)
+        addr = "%s://%s" % (addr.scheme, addr.path)
         zpub.bind(addr)
-    queue.put(("pub_addr", addr))
+    queue.put(("pub_address", addr))
     
     while True:
         data = queue.get()
@@ -85,7 +99,7 @@ def parse_arguments():
     """
     # Setting up argument parses
     parser = argparse.ArgumentParser(description=DESCRIPTION)
-    parser.add_argument('-t', metavar='<type>', dest='type', type=str, default="ipc", help=HELP['type'])
+    parser.add_argument('-t', metavar='<type>', dest='type', type=str, default="tcp", help=HELP['type'])
     parser.add_argument('-a', metavar='<address>', dest='address', type=str, help=HELP['address'])
     parser.add_argument('-pp', metavar='<pub_port>', dest='pub_port', type=int, help=HELP['pub_port'])
     parser.add_argument('-rp', metavar='<rep_port>', dest='rep_port', type=int, help=HELP['rep_port'])
@@ -101,7 +115,7 @@ def get_addresses(args):
         pub_addr = "ipc://%s" % tempfile.mkstemp(prefix="pmx")[1]
         rep_addr = "ipc://%s" % tempfile.mkstemp(prefix="pmx")[1]
     elif args.type == "tcp":
-        address = args.address if args.address is not None else 'localhost'
+        address = args.address if args.address is not None else '127.0.0.1'
         pub_addr = "tcp://%s" % address
         rep_addr = "tcp://%s" % address
         if args.pub_port is not None:
@@ -110,32 +124,40 @@ def get_addresses(args):
             rep_addr += ":%i" % args.rep_port
     return urlparse(rep_addr), urlparse(pub_addr)
 
-def main(args):
-    
-    rep_addr, pub_addr = get_addresses(args)
-    
-    if rep_addr and pub_addr:
-        queue = Queue()
-    
-        # Start the multiplexer
-        mproc = Process(target=worker_multiplexer, args=(queue, rep_addr))
-        mproc.start()
-        
-        # Start the notifier
-        nproc = Process(target=worker_notifier, args=(queue, pub_addr))
-        nproc.start()
-        
-        info = dict([queue.get(), queue.get()])
-        descriptor, name = tempfile.mkstemp(prefix="backend-", suffix=".json", dir = get_pmxterm_dir(), text = True)
-        tempFile = os.fdopen(descriptor, 'w+')
-        tempFile.write(json.dumps(info))
-        tempFile.close()
-        os.chmod(name, stat.S_IREAD | stat.S_IWRITE)
-        print "To connect another client to this backend, use:"
-        print "--existing %s" % name
-    else:
-        print "Address error, please read help"
-
 if __name__ == "__main__":
-    args = parse_arguments()
-    main(args)
+    rep_addr, pub_addr = get_addresses(parse_arguments())
+    
+    if not rep_addr or not pub_addr:
+        print "Address error, please read help"
+        sys.exit(-1)
+
+    queue_multiplexer = Queue()
+    queue_notifier = Queue()
+    
+    # Start the multiplexer
+    mproc = Process(target=worker_multiplexer, args=(queue_multiplexer, queue_notifier, rep_addr))
+    mproc.start()
+    
+    # Start the notifier
+    nproc = Process(target=worker_notifier, args=(queue_notifier, pub_addr))
+    nproc.start()
+    
+    info = dict([queue_multiplexer.get(), queue_notifier.get()])
+    descriptor, name = tempfile.mkstemp(prefix="backend-", suffix=".json", dir = get_pmxterm_dir(), text = True)
+    tempFile = os.fdopen(descriptor, 'w+')
+    tempFile.write(json.dumps(info))
+    tempFile.close()
+    os.chmod(name, stat.S_IREAD | stat.S_IWRITE)
+    
+    print "To connect another client to this backend, use:"
+    print name
+    print ";".join(map(lambda socket: "%s=%s" % socket, info.items()))
+    sys.stdout.flush()
+    
+    def signal_handler(signal, frame):
+        nproc.terminate()
+        mproc.terminate()
+        os.unlink(tempFile)
+        sys.exit(0)
+    
+    signal.signal(signal.SIGINT, signal_handler)
