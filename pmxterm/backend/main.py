@@ -126,7 +126,7 @@ def get_addresses(args):
 
 if __name__ == "__main__":
     rep_addr, pub_addr = get_addresses(parse_arguments())
-    
+
     if not rep_addr or not pub_addr:
         print "Address error, please read help"
         sys.exit(-1)
