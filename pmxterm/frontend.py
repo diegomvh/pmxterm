@@ -106,7 +106,6 @@ class TerminalWidget(QtGui.QWidget):
         self._press_pos = None
         self._selection = None
         self._clipboard = QtGui.QApplication.clipboard()
-        QtGui.QApplication.instance().lastWindowClosed.connect(Session.close_all)
         
     def setSession(self, session):
         if self._session is not None:

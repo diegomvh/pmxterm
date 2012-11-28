@@ -3,24 +3,22 @@
 import sys
 import os
 
-from PyQt4.QtCore import QTimer
-from PyQt4.QtGui import QApplication, QTabWidget, QPushButton
+from PyQt4 import QtGui, QtCore
 
 from pmxterm import TerminalWidget
-from pmxterm.procinfo import ProcessInfo
-from pmxterm.session import Session, SessionManager
+#from pmxterm.procinfo import ProcessInfo
+from pmxterm.session import Session, BackendManager
 
 
 
-class TabbedTerminal(QTabWidget):
+class TabbedTerminal(QtGui.QTabWidget):
 
     
-    def __init__(self, backend, parent=None):
+    def __init__(self, parent=None):
         super(TabbedTerminal, self).__init__(parent)
-        self.backend = backend
-        self.proc_info = ProcessInfo()
-        self.setTabPosition(QTabWidget.South)
-        self._new_button = QPushButton(self)
+#        self.proc_info = ProcessInfo()
+        self.setTabPosition(QtGui.QTabWidget.South)
+        self._new_button = QtGui.QPushButton(self)
         self._new_button.setText("New")
         self._new_button.clicked.connect(self.new_terminal)
         self.setCornerWidget(self._new_button)
@@ -31,10 +29,11 @@ class TabbedTerminal(QTabWidget):
         self._terms = []
         self.tabCloseRequested[int].connect(self._on_close_request)
         self.currentChanged[int].connect(self._on_current_changed)
-        self.sessionManager = SessionManager(parent = self)
-        self.localBackend = self.sessionManager.addBackend(self.backend)
-        QTimer.singleShot(0, self.new_terminal) # create lazy on idle
-
+        self.backendManager = BackendManager(parent = self)
+        self.localBackend = self.backendManager.localBackend()
+        QtGui.QApplication.instance().lastWindowClosed.connect(self.localBackend.close)
+        QtCore.QTimer.singleShot(0, self.new_terminal) # create lazy on idle
+        
     def _on_close_request(self, idx):
         term = self.widget(idx)
         term.stop()
@@ -45,17 +44,16 @@ class TabbedTerminal(QTabWidget):
         self._update_title(term)
 
     
-    def new_terminal(self, backend = None):
+    def new_terminal(self):
         # Create session
-        session = self.sessionManager.createSession(self.localBackend)
+        session = self.localBackend.session()
         term = TerminalWidget(parent = self)
         term.setSession(session)
         term.session_closed.connect(self._on_session_closed)
         self.addTab(term, "Terminal")
         self._terms.append(term)
         self.setCurrentWidget(term)
-        print os.environ
-        session.start(os.environ["SHELL"])
+        session.start("bash.exe")
         term.setFocus()
 
         
@@ -69,17 +67,17 @@ class TabbedTerminal(QTabWidget):
             return
         idx = self.indexOf(term)
         pid = term.pid()
-        self.proc_info.update()
-        child_pids = [pid] + self.proc_info.all_children(pid)
-        for pid in reversed(child_pids):
-            cwd = self.proc_info.cwd(pid)
-            if cwd:
-                break
-        try:
-            cmd = self.proc_info.commands[pid]
-            title = "%s: %s" % (os.path.basename(cwd), cmd)
-        except:
-            title = "Terminal"
+        #self.proc_info.update()
+        #child_pids = [pid] + self.proc_info.all_children(pid)
+        #for pid in reversed(child_pids):
+        #    cwd = self.proc_info.cwd(pid)
+        #    if cwd:
+        #        break
+        #try:
+        #    cmd = self.proc_info.commands[pid]
+        #    title = "%s: %s" % (os.path.basename(cwd), cmd)
+        #except:
+        #    title = "Terminal"
         title = "Terminal"
         self.setTabText(idx, title)
         self.setWindowTitle(title)
@@ -101,9 +99,8 @@ class TabbedTerminal(QTabWidget):
 
 
 if __name__ == "__main__":
-    if len(sys.argv) > 1:
-        app = QApplication(sys.argv)
-        win = TabbedTerminal(sys.argv[-1])
-        win.show()
-        app.exec_()
+    app = QtGui.QApplication(sys.argv)
+    win = TabbedTerminal()
+    win.show()
+    app.exec_()
 

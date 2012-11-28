@@ -5,44 +5,27 @@ import os
 import sys
 import zmq
 import argparse
-import tempfile
-import re
-import json
 import stat
 import signal
-from urlparse import urlparse
 
 from multiprocessing import Process, Queue
 from multiplexer import Multiplexer
     
-from utils import get_pmxterm_dir
-
 # ===========
 # = Workers =
 # ===========
-def worker_multiplexer(queue, notifier, addr):
-    multiplexer = Multiplexer(notifier)
-    
+def worker_multiplexer(queue_multiplexer, queue_notifier, addr):
+    multiplexer = Multiplexer(queue_notifier)
+        
     context = zmq.Context()
     zrep = context.socket(zmq.REP)
     
-    if addr.scheme in ["tcp", "udp"]:
-        port = None
-        try:
-            port = addr.port
-        except:
-            pass
-        if not port:
-            addr = "%s://%s" % (addr.scheme, addr.netloc)
-            port = zrep.bind_to_random_port(addr)
-            addr = "%s:%d" % (addr, port)
-        else:
-	       addr = "%s://%s" % (addr.scheme, addr.netloc)
-	       zrep.bind(addr)
+    if addr[1]:
+        port = zrep.bind_to_random_port(addr[0])
+        queue_multiplexer.put("%s:%d" % (addr[0], port))
     else:
-        addr = "%s://%s" % (addr.scheme, addr.path)
-        zrep.bind(addr)
-    queue.put(("shell_address", addr))
+        zrep.bind(addr[0])
+        queue_multiplexer.put(addr[0])
     
     while True:
         pycmd = zrep.recv_pyobj()
@@ -53,30 +36,19 @@ def worker_multiplexer(queue, notifier, addr):
             zrep.send_pyobj(None)
 
 
-def worker_notifier(queue, addr):
+def worker_notifier(queue_notifier, addr):
     context = zmq.Context()
     zpub = context.socket(zmq.PUB)
 
-    if addr.scheme in ["tcp", "udp"]:
-        port = None
-        try:
-            port = addr.port
-        except:
-            pass
-        if not port:
-            addr = "%s://%s" % (addr.scheme, addr.netloc)
-            port = zpub.bind_to_random_port(addr)
-            addr = "%s:%d" % (addr, port)
-        else:
-	       addr = "%s://%s" % (addr.scheme, addr.netloc)
-	       zpub.bind(addr)
+    if addr[1]:
+        port = zpub.bind_to_random_port(addr[0])
+        queue_notifier.put("%s:%d" % (addr[0], port))
     else:
-        addr = "%s://%s" % (addr.scheme, addr.path)
-        zpub.bind(addr)
-    queue.put(("pub_address", addr))
-    
+        zpub.bind(addr[0])
+        queue_notifier.put(addr[0])
+        
     while True:
-        data = queue.get()
+        data = queue_notifier.get()
         zpub.send(data)
 
 
@@ -114,15 +86,20 @@ def get_addresses(args):
     if args.type == "ipc":
         pub_addr = "ipc://%s" % tempfile.mkstemp(prefix="pmx")[1]
         rep_addr = "ipc://%s" % tempfile.mkstemp(prefix="pmx")[1]
+        return (rep_addr, False), (pub_addr, False)
     elif args.type == "tcp":
         address = args.address if args.address is not None else '127.0.0.1'
         pub_addr = "tcp://%s" % address
         rep_addr = "tcp://%s" % address
+        pub_port = rep_port = True
         if args.pub_port is not None:
+            pub_port = False
             pub_addr += ":%i" % args.pub_port
         if args.rep_port is not None:
+            rep_port = False
             rep_addr += ":%i" % args.rep_port
-    return urlparse(rep_addr), urlparse(pub_addr)
+        return (rep_addr, rep_port), (pub_addr, pub_port)
+    return None, None
 
 if __name__ == "__main__":
     rep_addr, pub_addr = get_addresses(parse_arguments())
@@ -142,22 +119,15 @@ if __name__ == "__main__":
     nproc = Process(target=worker_notifier, args=(queue_notifier, pub_addr))
     nproc.start()
     
-    info = dict([queue_multiplexer.get(), queue_notifier.get()])
-    descriptor, name = tempfile.mkstemp(prefix="backend-", suffix=".json", dir = get_pmxterm_dir(), text = True)
-    tempFile = os.fdopen(descriptor, 'w+')
-    tempFile.write(json.dumps(info))
-    tempFile.close()
-    os.chmod(name, stat.S_IREAD | stat.S_IWRITE)
+    info = { "multiplexer": queue_multiplexer.get(), "notifier": queue_notifier.get() }
     
     print "To connect another client to this backend, use:"
-    print name
-    print ";".join(map(lambda socket: "%s=%s" % socket, info.items()))
+    print info
     sys.stdout.flush()
     
     def signal_handler(signal, frame):
         nproc.terminate()
         mproc.terminate()
-        os.unlink(tempFile)
         sys.exit(0)
     
     signal.signal(signal.SIGINT, signal_handler)
