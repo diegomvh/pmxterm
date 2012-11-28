@@ -53,7 +53,7 @@ class TabbedTerminal(QtGui.QTabWidget):
         self.addTab(term, "Terminal")
         self._terms.append(term)
         self.setCurrentWidget(term)
-        session.start("bash.exe")
+        session.start("cmd.exe")
         term.setFocus()
 
         

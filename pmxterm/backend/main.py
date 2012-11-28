@@ -39,7 +39,7 @@ def worker_multiplexer(queue_multiplexer, queue_notifier, addr):
 def worker_notifier(queue_notifier, addr):
     context = zmq.Context()
     zpub = context.socket(zmq.PUB)
-
+    
     if addr[1]:
         port = zpub.bind_to_random_port(addr[0])
         queue_notifier.put("%s:%d" % (addr[0], port))
@@ -130,4 +130,5 @@ if __name__ == "__main__":
         mproc.terminate()
         sys.exit(0)
     
+    signal.signal(signal.SIGBREAK, signal_handler)
     signal.signal(signal.SIGINT, signal_handler)

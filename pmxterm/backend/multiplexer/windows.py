@@ -20,7 +20,7 @@ from vt100 import Terminal
 class WinTerminal(Terminal):
     def __init__(self, w, h):
         Terminal.__init__(self, w, h)
-        self.vt100_mode_lfnewline = True
+        self.vt100_mode_lfnewline = False
     
 def synchronized(func):
     def wrapper(self, *args, **kwargs):

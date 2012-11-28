@@ -99,7 +99,10 @@ class Backend(QtCore.QObject):
         
     def close(self):
         self.multiplexer.send_pyobj({"command": "stop", "args": []})
-        return self.multiplexer.recv_pyobj()
+        self.multiplexer.recv_pyobj()
+        if self.process is not None:
+            self.process.kill()
+            self.process.waitForFinished()
 
     def session(self):
         session = Session(self)
@@ -132,14 +135,8 @@ class BackendManager(QtCore.QObject):
         process.start(sys.executable, [LOCAL_BACKEND_SCRIPT, "-t", "tcp"])    
         process.waitForReadyRead()
         lines = str(process.readAllStandardOutput()).decode("utf-8").splitlines()
-        print lines
         return self.backend("local", lines[-1], process)
 
     def backendFinished(self):
         # emitir una señal de que se murio uno backend
         pass
-
-    def write_output(self):
-        data = self.backend.readAllStandardOutput()
-        self.tabTerminals.setBackendConnections(*str(data).decode("utf-8").splitlines())
-        self.tabTerminals.newTerminal()
