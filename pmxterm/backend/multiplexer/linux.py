@@ -268,6 +268,7 @@ class Multiplexer(object):
                 i, o, e = select.select(fds, [], [], 1.0)
             except (IOError, OSError):
                 i = []
+            print "cambios en", i
             for fd in i:
                 sid = fd2sid[fd]
                 self.proc_read(sid)
