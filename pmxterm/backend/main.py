@@ -111,15 +111,19 @@ if __name__ == "__main__":
     queue_multiplexer = Queue()
     queue_notifier = Queue()
     
+    # Start the notifier
+    nproc = Process(target=worker_notifier, args=(queue_notifier, pub_addr))
+    nproc.start()
+
+    naddress = queue_notifier.get()    
+    
     # Start the multiplexer
     mproc = Process(target=worker_multiplexer, args=(queue_multiplexer, queue_notifier, rep_addr))
     mproc.start()
     
-    # Start the notifier
-    nproc = Process(target=worker_notifier, args=(queue_notifier, pub_addr))
-    nproc.start()
-    
-    info = { "multiplexer": queue_multiplexer.get(), "notifier": queue_notifier.get() }
+    maddress = queue_multiplexer.get()
+        
+    info = { "multiplexer": maddress, "notifier": naddress }
     
     print "To connect another client to this backend, use:"
     print info
