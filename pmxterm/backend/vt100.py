@@ -1180,6 +1180,9 @@ class Terminal(object):
                 wx += self.utf8_charwidth(char)
                 if wx <= self.w:
                     line[-1] += unichr(char)
+            line.extend([(0x000f, 0x000e, False), u""])
             screen.append(line)
 
+        screen.append([(0x000f, 0x000e, False), u" " * self.w])
+        
         return (cx, cy), screen

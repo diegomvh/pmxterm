@@ -54,8 +54,8 @@ class Session(QtCore.QObject):
 
 
     def start(self, command):
-        return self.__send("proc_keepalive",
-            [self._session_id, self._width, self._height, command])
+        self._started = self.__send("proc_keepalive", [self._session_id, self._width, self._height, command])
+        return self._started
 
     def close(self):
         return self.__send("proc_bury", [self._session_id])

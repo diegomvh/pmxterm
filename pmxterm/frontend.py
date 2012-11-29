@@ -81,10 +81,10 @@ class TerminalWidget(QtGui.QWidget):
     }
 
 
-    session_closed = QtCore.pyqtSignal()
+    sessionClosed = QtCore.pyqtSignal()
 
 
-    def __init__(self, parent=None, font_name="Monospace", font_size=18):
+    def __init__(self, parent=None, font_name="Monospace", font_size=11):
         super(TerminalWidget, self).__init__(parent)
         self.parent().setTabOrder(self, self)
         self.setFocusPolicy(QtCore.Qt.WheelFocus)
@@ -149,7 +149,6 @@ class TerminalWidget(QtGui.QWidget):
         self._columns, self._rows = self._pixel2pos(self.width(), self.height())
         self._session.resize(self._columns, self._rows)
 
-
     def closeEvent(self, event):
         if self._session is None or not self._session.is_alive():
             return
@@ -157,9 +156,8 @@ class TerminalWidget(QtGui.QWidget):
 
 
     def _session_readyRead(self):
-        if not self._session.is_alive():
-            self.session_closed.emit()
-            return
+        #self.sessionClosed.emit()
+        #Controlar que la session este bien y si no es asi dispara señal
         old_screen = self._screen
         (self._cursor_col, self._cursor_row), self._screen = self._session.dump()
         self._update_cursor_rect()

@@ -13,55 +13,99 @@ import struct
 import select
 import subprocess
 import array
-from multiprocessing import Queue
+
+from win32file import ReadFile, WriteFile
+from win32pipe import PeekNamedPipe
+import msvcrt
 
 from vt100 import Terminal
+
+class Popen(subprocess.Popen):
+    def recv(self, maxsize=None):
+        return self._recv('stdout', maxsize)
+    
+    def recv_err(self, maxsize=None):
+        return self._recv('stderr', maxsize)
+
+    def send_recv(self, input='', maxsize=None):
+        return self.send(input), self.recv(maxsize), self.recv_err(maxsize)
+
+    def get_conn_maxsize(self, which, maxsize):
+        if maxsize is None:
+            maxsize = 1024
+        elif maxsize < 1:
+            maxsize = 1
+        return getattr(self, which), maxsize
+    
+    def _close(self, which):
+        getattr(self, which).close()
+        setattr(self, which, None)
+    
+    def send(self, input):
+        if not self.stdin:
+            return None
+
+        try:
+            x = msvcrt.get_osfhandle(self.stdin.fileno())
+            (errCode, written) = WriteFile(x, input)
+        except ValueError:
+            return self._close('stdin')
+        except (subprocess.pywintypes.error, Exception), why:
+            if why[0] in (109, errno.ESHUTDOWN):
+                return self._close('stdin')
+            raise
+
+        return written
+
+    def _recv(self, which, maxsize):
+        conn, maxsize = self.get_conn_maxsize(which, maxsize)
+        if conn is None:
+            return None
+        
+        try:
+            x = msvcrt.get_osfhandle(conn.fileno())
+            (read, nAvail, nMessage) = PeekNamedPipe(x, 0)
+            if maxsize < nAvail:
+                nAvail = maxsize
+            if nAvail > 0:
+                (errCode, read) = ReadFile(x, nAvail, None)
+        except ValueError:
+            return self._close(which)
+        except (subprocess.pywintypes.error, Exception), why:
+            if why[0] in (109, errno.ESHUTDOWN):
+                return self._close(which)
+            raise
+        
+        if self.universal_newlines:
+            read = self._translate_newlines(read)
+        return read
 
 class WinTerminal(Terminal):
     def __init__(self, w, h):
         Terminal.__init__(self, w, h)
-        self.vt100_mode_lfnewline = False
+        self.vt100_mode_lfnewline = True
     
-def synchronized(func):
-    def wrapper(self, *args, **kwargs):
-        try:
-            self.lock.acquire()
-        except AttributeError:
-            self.lock = threading.RLock()
-            self.lock.acquire()
-        try:
-            result = func(self, *args, **kwargs)
-        finally:
-            self.lock.release()
-        return result
-    return wrapper
-
 class Multiplexer(object):
     def __init__(self, queue, timeout = 60*60*24):
         # Session
         self.session = {}
         self.queue = queue
         self.timeout = timeout
-
-        # Supervisor
         self.signal_stop = 0
-        self.thread = threading.Thread(target = self.proc_thread)
-        self.thread.start()
-
+        
     def stop(self):
         # Stop supervisor thread
         self.signal_stop = 1
-        self.thread.join()
+        #self.thread.join()
 
     def proc_resize(self, sid, w, h):
         self.session[sid]['term'].set_size(w, h)
         self.session[sid]['w'] = w
         self.session[sid]['h'] = h
 
-
-    @synchronized
     def proc_keepalive(self, sid, w, h, command = None):
         if not sid in self.session:
+            print "creando", sid, self.session
             # Start a new session
             self.session[sid] = {
                 'state':'unborn',
@@ -83,19 +127,12 @@ class Multiplexer(object):
         # Session
         self.session[sid]['state'] = 'alive'
         w, h = self.session[sid]['w'], self.session[sid]['h']
-        process = subprocess.Popen(command, shell = True, stdin = subprocess.PIPE, stdout = subprocess.PIPE, stderr = subprocess.PIPE)
-        def enqueue_output(output, queue):
-            while True:
-                data = output.read(1)
-                queue.put(data)
-        queue = Queue()
-        thread = threading.Thread(target=enqueue_output, args=(process.stdout, queue))
-        thread.daemon = True
-        thread.start()
-        self.session[sid]['process'] = process
-        self.session[sid]['thread'] = thread
-        self.session[sid]['queue'] = queue
-        self.session[sid]['pid'] = process.pid
+        self.session[sid]['process'] = Popen(command, stdin = subprocess.PIPE, stdout = subprocess.PIPE, stderr = subprocess.PIPE, universal_newlines = True)
+        self.session[sid]['pid'] = self.session[sid]['process'].pid
+        
+        self.session[sid]['thread'] = threading.Thread(target=self.proc_read, args=(sid, ))
+        self.session[sid]['thread'].daemon = True
+        self.session[sid]['thread'].start()
         self.proc_resize(sid, w, h)
         return True
 
@@ -130,36 +167,22 @@ class Multiplexer(object):
             del self.session[sid]
         return True
 
-
-    @synchronized
-    def proc_buryall(self):
-        for sid in self.session.keys():
-            self.proc_bury(sid)
-
-
-    @synchronized
     def proc_read(self, sid):
         """
         Read from process
         """
-        if sid not in self.session:
-            return False
-        elif self.session[sid]['state'] != 'alive':
-            return False
-        queue = self.session[sid]['queue']
-        term = self.session[sid]['term']
-        data = ""
-        try:
-            while True:
-                data += queue.get_nowait()
-        except Exception, ex:
-            pass
-        if data:
-            term.write(data)
-        return bool(data)
+        session = self.session[sid]
+        while not self.signal_stop:
+            if session['state'] != 'alive':
+                break
+            data = self.session[sid]['process'].recv()
+            if data:
+                session['term'].write(data)
+                session["changed"] = time.time()
+                self.queue.put(sid)
+            time.sleep(0.002)
+        self.proc_bury(sid)
 
-
-    @synchronized
     def proc_write(self, sid, d):
         """
         Write to process
@@ -169,18 +192,15 @@ class Multiplexer(object):
         elif self.session[sid]['state'] != 'alive':
             return False
         try:
-            term = self.session[sid]['term']
-            process = self.session[sid]['process']
-            process.stdin.write(term.pipe(d))
-            term.write(d)
-            self.queue.put(sid)
-            process.stdin.flush()
+            for c in d:
+                if ord(c) == 13:
+                    self.session[sid]['process'].send('\r\n')
+                else:
+                    self.session[sid]['process'].send(c)
         except (IOError, OSError):
             return False
         return True
 
-
-    @synchronized
     def proc_dump(self, sid):
         """
         Dump terminal output
@@ -188,34 +208,6 @@ class Multiplexer(object):
         if sid not in self.session:
             return False
         return self.session[sid]['term'].dump()
-
-
-    @synchronized
-    def proc_getalive(self):
-        """
-        Get alive sessions, bury timed out ones
-        """
-        sids = []
-        now = time.time()
-        for sid in self.session.keys():
-            then = self.session[sid]['time']
-            if (now - then) > self.timeout:
-                self.proc_bury(sid)
-            elif 'queue' in self.session[sid] and self.session[sid]['state'] == 'alive':
-                sids.append(sid)
-        return sids
-
-    def proc_thread(self):
-        """
-        Supervisor thread
-        """
-        while not self.signal_stop:
-            for sid in self.proc_getalive():
-                if self.proc_read(sid):
-                    self.session[sid]["changed"] = time.time()
-                    self.queue.put(sid)
-                    time.sleep(0.002)
-        self.proc_buryall()
 
     def is_session_alive(self, sid):
         return self.session.get(sid, {}).get('state') == 'alive'

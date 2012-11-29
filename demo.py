@@ -31,7 +31,7 @@ class TabbedTerminal(QtGui.QTabWidget):
         self.currentChanged[int].connect(self._on_current_changed)
         self.backendManager = BackendManager(parent = self)
         #self.localBackend = self.backendManager.localBackend()
-        self.localBackend = self.backendManager.backend("Morena", "{'multiplexer': 'tcp://10.0.0.1:61595', 'notifier': 'tcp://10.0.0.1:50978'}")
+        self.localBackend = self.backendManager.backend("Morena", "{'multiplexer': 'tcp://127.0.0.1:55539', 'notifier': 'tcp://127.0.0.1:54400'}")
         QtGui.QApplication.instance().lastWindowClosed.connect(self.localBackend.close)
         QtCore.QTimer.singleShot(0, self.new_terminal) # create lazy on idle
         
@@ -50,7 +50,7 @@ class TabbedTerminal(QtGui.QTabWidget):
         session = self.localBackend.session()
         term = TerminalWidget(parent = self)
         term.setSession(session)
-        term.session_closed.connect(self._on_session_closed)
+        term.sessionClosed.connect(self._on_session_closed)
         self.addTab(term, "Terminal")
         self._terms.append(term)
         self.setCurrentWidget(term)
