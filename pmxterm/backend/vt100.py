@@ -1143,10 +1143,10 @@ class Terminal(object):
 
     def dump(self):
         screen = []
-        attr_ = -1
         cx, cy = min(self.cx, self.w - 1), self.cy
         for y in range(0, self.h):
             wx = 0
+            attr_ = -1
             line = [""]
             for x in range(0, self.w):
                 d = self.screen[y * self.w + x]
