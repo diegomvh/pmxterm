@@ -77,6 +77,7 @@ class Multiplexer(object):
     @synchronized
     def proc_keepalive(self, sid, w, h, cmd=None):
         if not sid in self.session:
+            print "nuevo proc", self.session, sid
             # Start a new session
             self.session[sid] = {
                 'state':'unborn',
