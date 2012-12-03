@@ -212,8 +212,12 @@ class Multiplexer(object):
     def is_session_alive(self, sid):
         return self.session.get(sid, {}).get('state') == 'alive'
         
-    def session_pid(self, sid):
-        return self.session.get(sid, {}).get("pid", None)
-        
     def last_session_change(self, sid):
         return self.session.get(sid, {}).get("changed", None)
+
+    def session_pid(self, sid):
+        return self.session.get(sid, {}).get("pid", None)
+
+    def session_info(self, sid):
+        pid = self.session_pid(sid)
+        return {}

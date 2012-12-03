@@ -87,6 +87,9 @@ class Session(QtCore.QObject):
     def pid(self):
         return self.__send("session_pid", [self._session_id])
         
+    def info(self):
+        return self.__send("session_info", [self._session_id])
+        
 class Backend(QtCore.QObject):
     def __init__(self, name, multiplexer_address, notifier_address, process = None, parent = None):
         QtCore.QObject.__init__(self, parent)

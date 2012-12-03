@@ -30,8 +30,8 @@ class TabbedTerminal(QtGui.QTabWidget):
         self.tabCloseRequested[int].connect(self._on_close_request)
         self.currentChanged[int].connect(self._on_current_changed)
         self.backendManager = BackendManager(parent = self)
-        #self.localBackend = self.backendManager.localBackend()
-        self.localBackend = self.backendManager.backend("Morena", "{'multiplexer': 'tcp://10.0.0.1:62494', 'notifier': 'tcp://10.0.0.1:51514'}")
+        self.localBackend = self.backendManager.localBackend()
+        #self.localBackend = self.backendManager.backend("Morena", "{'multiplexer': 'tcp://10.0.0.1:62857', 'notifier': 'tcp://10.0.0.1:57860'}")
         QtGui.QApplication.instance().lastWindowClosed.connect(self.localBackend.close)
         QtCore.QTimer.singleShot(0, self.new_terminal) # create lazy on idle
         
@@ -54,7 +54,7 @@ class TabbedTerminal(QtGui.QTabWidget):
         self.addTab(term, "Terminal")
         self._terms.append(term)
         self.setCurrentWidget(term)
-        session.start("zsh")
+        session.start("cmd.exe")
         term.setFocus()
 
         
@@ -67,18 +67,7 @@ class TabbedTerminal(QtGui.QTabWidget):
             self.setWindowTitle("Terminal")
             return
         idx = self.indexOf(term)
-        pid = term.pid()
-        #self.proc_info.update()
-        #child_pids = [pid] + self.proc_info.all_children(pid)
-        #for pid in reversed(child_pids):
-        #    cwd = self.proc_info.cwd(pid)
-        #    if cwd:
-        #        break
-        #try:
-        #    cmd = self.proc_info.commands[pid]
-        #    title = "%s: %s" % (os.path.basename(cwd), cmd)
-        #except:
-        #    title = "Terminal"
+        print term.info()
         title = "Terminal"
         self.setTabText(idx, title)
         self.setWindowTitle(title)
