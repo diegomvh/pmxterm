@@ -34,7 +34,7 @@ def synchronized(func):
 
 
 class ProcessInfo(object):
-    def update(self, spid):
+    def update(self):
         processes = [int(entry) for entry in os.listdir("/proc") if entry.isdigit()]
         parent = {}
         children = {}
