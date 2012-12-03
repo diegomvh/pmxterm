@@ -118,6 +118,7 @@ class TerminalWidget(QtGui.QWidget):
         font.setPixelSize(font_size)
         self.setFont(font)
         self.session = session
+        self.session.readyRead.connect(self.session_readyRead)
         self._last_update = None
         self._screen = []
         self._text = []
@@ -171,7 +172,7 @@ class TerminalWidget(QtGui.QWidget):
         self.session.close()
 
 
-    def _session_readyRead(self):
+    def session_readyRead(self):
         #self.sessionClosed.emit()
         #Controlar que la session este bien y si no es asi dispara señal
         old_screen = self._screen
