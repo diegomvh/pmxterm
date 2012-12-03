@@ -68,10 +68,15 @@ class ProcessInfo(object):
         return path
 
     def info(self, pid):
-        info = {pid: (self.commands[pid], self.cwd(pid))}
-        for child_pid in self.children.get(pid, []):
-            info.update(self.info(child_pid))
+        info = {}
+        cwd = self.cwd(pid)
+        if pid in self.commands and cwd:
+            info[pid] = (self.commands[pid], self.cwd(pid))
+            for child_pid in self.children.get(pid, []):
+                if child_pid:
+                    info.update(self.info(child_pid))
         return info
+            
 
 class Multiplexer(object):
     def __init__(self, queue, cmd="/bin/bash", env_term = "xterm-color", timeout=60*60*24):
