@@ -31,7 +31,7 @@ class TerminalWidget(QtGui.QWidget):
       9: "#f00",
       10: "#0f0",
       11: "#ff0",
-      12: "#00f",
+      12: "#aaa",
       13: "#f0f", 
       14: "#000",
       15: "#fff",
@@ -114,14 +114,16 @@ class TerminalWidget(QtGui.QWidget):
         self.setAutoFillBackground(False)
         self.setAttribute(QtCore.Qt.WA_OpaquePaintEvent, True)
         self.setCursor(QtCore.Qt.IBeamCursor)
+        
+        # Font
+        font = QtGui.QFont("Monospace", 9)
+        font.setStyleStrategy(font.styleStrategy() | QtGui.QFont.ForceIntegerMetrics)
+        self.setFont(font)
+        
+        #Session
         self.session = session
         self.session.readyRead.connect(self.session_readyRead)
-        font = QtGui.QFont("Monospace", 9)
-        font.setKerning(False)
-        font.setStyleStrategy(font.styleStrategy() | QtGui.QFont.ForceIntegerMetrics)
-        font.setStyleHint(QtGui.QFont.TypeWriter)
-        font.setFixedPitch(True)
-        self.setFont(font)
+        self.session.screenReady.connect(self.session_screenReady)
         
         self._last_update = None
         self._screen = []
@@ -164,11 +166,11 @@ class TerminalWidget(QtGui.QWidget):
     def focusInEvent(self, event):
         self.update_screen()
 
+
     def resizeEvent(self, event):
-        if not self.session.is_alive():
-            return
         self._columns, self._rows = self._pixel2pos(self.width(), self.height())
         self.session.resize(self._columns, self._rows)
+
 
     def closeEvent(self, event):
         if not self.session.is_alive():
@@ -177,10 +179,11 @@ class TerminalWidget(QtGui.QWidget):
 
 
     def session_readyRead(self):
-        #self.sessionClosed.emit()
-        #Controlar que la session este bien y si no es asi dispara señal
+        self.session_screenReady(self.session.dump())
+
+    def session_screenReady(self, screen):
         old_screen = self._screen
-        (self._cursor_col, self._cursor_row), self._screen = self.session.dump()
+        (self._cursor_col, self._cursor_row), self._screen = screen
         self._update_cursor_rect()
         if old_screen != self._screen:
             self._dirty = True
@@ -193,7 +196,6 @@ class TerminalWidget(QtGui.QWidget):
         fm = self.fontMetrics()
         self._char_height = fm.height()
         self._char_width = fm.width(" ")
-
 
     def _update_cursor_rect(self):
         cx, cy = self._pos2pixel(self._cursor_col, self._cursor_row)
@@ -371,7 +373,7 @@ class TerminalWidget(QtGui.QWidget):
                 self.zoom_out()
             event.accept()
         else:
-            QtGui.QPlainTextEdit.wheelEvent(self, event)
+            QtGui.QWidget.wheelEvent(self, event)
     
     def mousePressEvent(self, event):
         button = event.button()

@@ -135,5 +135,7 @@ if __name__ == "__main__":
         mproc.terminate()
         sys.exit(0)
     
-    signal.signal(signal.SIGBREAK, signal_handler)
-    signal.signal(signal.SIGINT, signal_handler)
+    if sys.platform.startswith("linux"):
+        signal.signal(signal.SIGINT, signal_handler)
+    elif sys.platform == "win32":
+        signal.signal(signal.SIGBREAK, signal_handler)

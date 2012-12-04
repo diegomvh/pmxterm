@@ -16,6 +16,7 @@ LOCAL_BACKEND_SCRIPT = os.path.join(os.path.dirname(__file__), "backend", "main.
 
 class Session(QtCore.QObject):
     readyRead = QtCore.pyqtSignal()
+    screenReady = QtCore.pyqtSignal(tuple)
     
     def __init__(self, backend, width=80, height=24):
         QtCore.QObject.__init__(self, backend)
@@ -28,7 +29,7 @@ class Session(QtCore.QObject):
         self._width = width
         self._height = height
         self._started = False
-
+        
     def sid(self):
         return self._session_id
 
@@ -37,7 +38,6 @@ class Session(QtCore.QObject):
         self._height = height
         if self._started:
             self.keepalive()
-
 
     def start(self, *largs):
         args = [self._session_id, self._width, self._height]
@@ -84,6 +84,12 @@ class Backend(QtCore.QObject):
         QtCore.QObject.__init__(self, parent)
         self.name = name
         self.process = process   # If backend is local
+        
+        if self.process is not None:
+            self.process.finished.connect(self.backend_finished)
+            self.process.readyReadStandardError.connect(self.backend_readyReadStandardError)
+            self.process.readyReadStandardOutput.connect(self.backend_readyReadStandardOutput)
+        
         self.sessions = {}
         
         self.multiplexer = ZmqSocket(zmq.REQ, self)
@@ -94,6 +100,17 @@ class Backend(QtCore.QObject):
         self.notifier.subscribe("") #All
         self.notifier.connect(notifier_address)
 
+    #------------ Process Signals
+    def backend_finished(self):
+        # emitir una señal de que se murio uno backend
+        print "se murio el backend"
+        
+    def backend_readyReadStandardError(self):
+        print str(self.process.readAllStandardError()).decode("utf-8")
+        
+    def backend_readyReadStandardOutput(self):
+        print str(self.process.readAllStandardOutput()).decode("utf-8")
+
     def execute(self, command, args = None):
         if args is None:
             args = []
@@ -103,9 +120,8 @@ class Backend(QtCore.QObject):
     def notifier_readyRead(self):
         sid, dump = self.notifier.recv_multipart()
         if sid in self.sessions:
-            #TODO ver que hacemos con el dump
-            self.sessions[sid].readyRead.emit()
-    
+            self.sessions[sid].screenReady.emit(ast.literal_eval(dump))
+            
     def close(self):
         self.execute("stop")
         if self.process is not None:

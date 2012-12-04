@@ -16,6 +16,7 @@ import struct
 import select
 import subprocess
 
+from multiplexer import base
 from vt100 import Terminal
 
 def synchronized(func):
@@ -78,12 +79,10 @@ class ProcessInfo(object):
         return info
             
 
-class Multiplexer(object):
+class Multiplexer(base.Multiplexer):
     def __init__(self, queue, cmd="/bin/bash", env_term = "xterm-color", timeout=60*60*24):
-        # Set Linux signal handler
-        if sys.platform in ("linux2", "linux3"):
-            self.sigchldhandler = signal.signal(signal.SIGCHLD, signal.SIG_IGN)
-            
+        
+        base.Multiplexer.__init__(self)
         self.processInfo = ProcessInfo()
 
         # Sessions
@@ -319,7 +318,7 @@ class Multiplexer(object):
                 sid = fd2sid[fd]
                 self.proc_read(sid)
                 self.session[sid]["changed"] = time.time()
-                self.queue.put(sid)
+                self.queue.put([ sid, str(self.session[sid]["term"].dump()) ])
             if len(i):
                 time.sleep(0.002)
         self.proc_buryall()
