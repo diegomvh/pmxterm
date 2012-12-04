@@ -16,7 +16,6 @@ class TabbedTerminal(QtGui.QTabWidget):
     
     def __init__(self, parent=None):
         super(TabbedTerminal, self).__init__(parent)
-#        self.proc_info = ProcessInfo()
         self.setTabPosition(QtGui.QTabWidget.South)
         self._new_button = QtGui.QPushButton(self)
         self._new_button.setText("New")
@@ -25,13 +24,12 @@ class TabbedTerminal(QtGui.QTabWidget):
         self.setTabsClosable(True)
         self.setMovable(True)
         self.setWindowTitle("Terminal")
-        self.resize(800, 600)
         self._terms = []
         self.tabCloseRequested[int].connect(self._on_close_request)
         self.currentChanged[int].connect(self._on_current_changed)
         self.backendManager = BackendManager(parent = self)
-        #self.localBackend = self.backendManager.localBackend()
-        self.localBackend = self.backendManager.backend("Morena", "{'multiplexer': 'tcp://10.0.0.1:59296', 'notifier': 'tcp://10.0.0.1:61305'}")
+        self.localBackend = self.backendManager.localBackend()
+        #self.localBackend = self.backendManager.backend("Morena", "{'multiplexer': 'tcp://10.0.0.1:59296', 'notifier': 'tcp://10.0.0.1:61305'}")
         QtGui.QApplication.instance().lastWindowClosed.connect(self.localBackend.close)
         QtCore.QTimer.singleShot(0, self.new_terminal) # create lazy on idle
         
@@ -90,6 +88,7 @@ class TabbedTerminal(QtGui.QTabWidget):
 if __name__ == "__main__":
     app = QtGui.QApplication(sys.argv)
     win = TabbedTerminal()
+    win.resize(800, 600)
     win.show()
     app.exec_()
 

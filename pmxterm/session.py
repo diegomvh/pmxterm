@@ -127,15 +127,20 @@ class BackendManager(QtCore.QObject):
         self.backends.append(backend)
         return backend
         
-    def localBackend(self, workingDirectory = None):
+    def localBackend(self, workingDirectory = None, protocol = 'ipc', address = None):
+        args = [LOCAL_BACKEND_SCRIPT, "-t", protocol]
+        
         process = QtCore.QProcess(self)
         
         if workingDirectory:
             process.setWorkingDirectory(workingDirectory)
+            
+        if address is not None:
+            args.extend(["-a", address])
         
         process.finished.connect(self.backendFinished)
 
-        process.start(sys.executable, [LOCAL_BACKEND_SCRIPT, "-t", "tcp"])    
+        process.start(sys.executable, args)    
         process.waitForReadyRead()
         lines = str(process.readAllStandardOutput()).decode("utf-8").splitlines()
         return self.backend("local", lines[-1], process)

@@ -107,18 +107,19 @@ class TerminalWidget(QtGui.QWidget):
     sessionClosed = QtCore.pyqtSignal()
 
 
-    def __init__(self, session, parent=None, font_name="Consolas", font_size=11):
+    def __init__(self, session, parent=None):
         super(TerminalWidget, self).__init__(parent)
         self.parent().setTabOrder(self, self)
         self.setFocusPolicy(QtCore.Qt.WheelFocus)
         self.setAutoFillBackground(False)
         self.setAttribute(QtCore.Qt.WA_OpaquePaintEvent, True)
         self.setCursor(QtCore.Qt.IBeamCursor)
-        font = QtGui.QFont(font_name)
-        font.setPixelSize(font_size)
-        self.setFont(font)
         self.session = session
         self.session.readyRead.connect(self.session_readyRead)
+        font = QtGui.QFont("Monospaced", 9)
+        font.setStyleHint(QtGui.QFont.Monospace)
+        font.setFixedPitch(True)
+        self.setFont(font)
         self._last_update = None
         self._screen = []
         self._text = []
@@ -188,7 +189,7 @@ class TerminalWidget(QtGui.QWidget):
     def _update_metrics(self):
         fm = self.fontMetrics()
         self._char_height = fm.height()
-        self._char_width = fm.width("W")
+        self._char_width = fm.width(" ")
 
 
     def _update_cursor_rect(self):
@@ -268,7 +269,8 @@ class TerminalWidget(QtGui.QWidget):
                 if isinstance(item, basestring):
                     x = col * char_width
                     length = len(item)
-                    rect = QtCore.QRect(x, y, x + char_width * length, y + char_height)
+                    #rect = QtCore.QRect(x, y, x + char_width * length, y + char_height)
+                    rect = self.fontMetrics().boundingRect(item)
                     painter_fillRect(rect, brush)
                     painter_drawText(rect, align, item)
                     col += length

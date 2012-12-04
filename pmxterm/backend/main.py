@@ -7,6 +7,7 @@ import zmq
 import argparse
 import stat
 import signal
+import tempfile
 
 from multiprocessing import Process, Queue
 from multiplexer import Multiplexer
