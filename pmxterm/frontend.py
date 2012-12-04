@@ -116,8 +116,11 @@ class TerminalWidget(QtGui.QWidget):
         self.setCursor(QtCore.Qt.IBeamCursor)
         self.session = session
         self.session.readyRead.connect(self.session_readyRead)
-        font = QtGui.QFont("Monospaced", 9)
+        font = QtGui.QFont("Monospace", 9)
+        font.setKerning(False)
+        font.setStyleStrategy(font.styleStrategy() | QtGui.QFont.ForceIntegerMetrics)
         font.setStyleHint(QtGui.QFont.Monospace)
+        
         font.setFixedPitch(True)
         self.setFont(font)
         self._last_update = None
@@ -269,8 +272,7 @@ class TerminalWidget(QtGui.QWidget):
                 if isinstance(item, basestring):
                     x = col * char_width
                     length = len(item)
-                    #rect = QtCore.QRect(x, y, x + char_width * length, y + char_height)
-                    rect = self.fontMetrics().boundingRect(item)
+                    rect = QtCore.QRect(x, y, x + char_width * length, y + char_height)
                     painter_fillRect(rect, brush)
                     painter_drawText(rect, align, item)
                     col += length
