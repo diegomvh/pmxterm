@@ -119,10 +119,10 @@ class TerminalWidget(QtGui.QWidget):
         font = QtGui.QFont("Monospace", 9)
         font.setKerning(False)
         font.setStyleStrategy(font.styleStrategy() | QtGui.QFont.ForceIntegerMetrics)
-        font.setStyleHint(QtGui.QFont.Monospace)
-        
+        font.setStyleHint(QtGui.QFont.TypeWriter)
         font.setFixedPitch(True)
         self.setFont(font)
+        
         self._last_update = None
         self._screen = []
         self._text = []
