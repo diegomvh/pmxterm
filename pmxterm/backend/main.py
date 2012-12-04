@@ -50,7 +50,7 @@ def worker_notifier(queue_notifier, addr):
         
     while True:
         data = queue_notifier.get()
-        zpub.send(data)
+        zpub.send_multipart(data)
 
 
 # ==============

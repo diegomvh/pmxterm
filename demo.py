@@ -29,7 +29,7 @@ class TabbedTerminal(QtGui.QTabWidget):
         self.currentChanged[int].connect(self._on_current_changed)
         self.backendManager = BackendManager(parent = self)
         self.localBackend = self.backendManager.localBackend(protocol = "tcp")
-        #self.localBackend = self.backendManager.backend("Morena", "{'multiplexer': 'tcp://10.0.0.1:59296', 'notifier': 'tcp://10.0.0.1:61305'}")
+        #self.localBackend = self.backendManager.backend("Morena", "{'multiplexer': 'tcp://10.0.0.1:56621', 'notifier': 'tcp://10.0.0.1:54742'}")
         QtGui.QApplication.instance().lastWindowClosed.connect(self.localBackend.close)
         QtCore.QTimer.singleShot(0, self.new_terminal) # create lazy on idle
         
@@ -51,7 +51,7 @@ class TabbedTerminal(QtGui.QTabWidget):
         self.addTab(term, "Terminal")
         self._terms.append(term)
         self.setCurrentWidget(term)
-        session.start("zsh")
+        session.start("cmd.exe")
         term.setFocus()
 
         

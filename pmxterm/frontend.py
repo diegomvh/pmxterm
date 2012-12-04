@@ -305,16 +305,26 @@ class TerminalWidget(QtGui.QWidget):
             painter.fillRect(rect, brush)
 
 
+    FONT_MAX_SIZE = 32
+    FONT_MIN_SIZE = 6
     def zoom_in(self):
         font = self.font()
-        font.setPixelSize(font.pixelSize() + 2)
+        size = font.pointSize()
+        if size >= self.FONT_MAX_SIZE:
+            return
+        size += 1
+        font.setPointSize(size)
         self.setFont(font)
         self._reset()
 
         
     def zoom_out(self):
         font = self.font()
-        font.setPixelSize(font.pixelSize() - 2)
+        size = font.pointSize()
+        if size <= self.FONT_MIN_SIZE:
+            return
+        size -= 1
+        font.setPointSize(size)
         self.setFont(font)
         self._reset()
         
@@ -353,6 +363,16 @@ class TerminalWidget(QtGui.QWidget):
             self.return_pressed.emit()
 
 
+    def wheelEvent(self, event):
+        if event.modifiers() == QtCore.Qt.ControlModifier:
+            if event.delta() == 120:
+                self.zoom_in()
+            elif event.delta() == -120:
+                self.zoom_out()
+            event.accept()
+        else:
+            QtGui.QPlainTextEdit.wheelEvent(self, event)
+    
     def mousePressEvent(self, event):
         button = event.button()
         if button == QtCore.Qt.RightButton:

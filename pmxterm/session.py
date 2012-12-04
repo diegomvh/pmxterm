@@ -17,8 +17,10 @@ LOCAL_BACKEND_SCRIPT = os.path.join(os.path.dirname(__file__), "backend", "main.
 class Session(QtCore.QObject):
     readyRead = QtCore.pyqtSignal()
     
-    def __init__(self, parent = None, width=80, height=24):
-        QtCore.QObject.__init__(self, parent)
+    def __init__(self, backend, width=80, height=24):
+        QtCore.QObject.__init__(self, backend)
+        
+        self.backend = backend
         
         #Session Id
         self._session_id = "%s-%s" % (time.time(), id(self))
@@ -27,25 +29,9 @@ class Session(QtCore.QObject):
         self._height = height
         self._started = False
 
-    def connect(self, shell_address, pub_address):
-        self._shell = ZmqSocket(zmq.REQ, self)
-        self._shell.connect(shell_address)
-        
-        # Session subscriber
-        self._pub = ZmqSocket(zmq.SUB, self)
-        self._pub.readyRead.connect(self.subs_readyRead)
-        self._pub.subscribe(self._session_id)
-        self._pub.connect(pub_address)
+    def sid(self):
+        return self._session_id
 
-    def __send(self, command, args):
-        self._shell.send_pyobj({"command": command, "args": args})
-        return self._shell.recv_pyobj()
-    
-    def subs_readyRead(self):
-        sid = self._pub.recv()[0]
-        if sid == self._session_id:
-            self.readyRead.emit()
-        
     def resize(self, width, height):
         self._width = width
         self._height = height
@@ -53,63 +39,85 @@ class Session(QtCore.QObject):
             self.keepalive()
 
 
-    def start(self, command):
-        self._started = self.__send("proc_keepalive", [self._session_id, self._width, self._height, command])
+    def start(self, *largs):
+        args = [self._session_id, self._width, self._height]
+        if largs:
+            args.extend(largs)
+        self._started = self.backend.execute("proc_keepalive", args)
         return self._started
 
     def close(self):
-        return self.__send("proc_bury", [self._session_id])
+        return self.backend.execute("proc_bury", [self._session_id])
     
     stop = close
 
     def is_alive(self):
-        return self.__send("is_session_alive", [self._session_id])
+        return self.backend.execute("is_session_alive", [self._session_id])
 
         
     def keepalive(self):
-        return self.__send("proc_keepalive", [self._session_id, self._width, self._height])
+        return self.backend.execute("proc_keepalive", [self._session_id, self._width, self._height])
 
 
     def dump(self):
         if self.keepalive():
-            return self.__send("proc_dump", [self._session_id])
+            return self.backend.execute("proc_dump", [self._session_id])
 
 
     def write(self, data):
         if self.keepalive():
-            return self.__send("proc_write", [self._session_id, data])
+            return self.backend.execute("proc_write", [self._session_id, data])
 
 
     def last_change(self):
-        return self.__send("last_session_change", [self._session_id])
+        return self.backend.execute("last_session_change", [self._session_id])
         
     
     def pid(self):
-        return self.__send("session_pid", [self._session_id])
+        return self.backend.execute("session_pid", [self._session_id])
         
     def info(self):
-        return self.__send("session_info", [self._session_id])
+        return self.backend.execute("session_info", [self._session_id])
         
 class Backend(QtCore.QObject):
     def __init__(self, name, multiplexer_address, notifier_address, process = None, parent = None):
         QtCore.QObject.__init__(self, parent)
         self.name = name
         self.process = process   # If backend is local
-        self.multiplexer_address = multiplexer_address
-        self.notifier_address = notifier_address
+        self.sessions = {}
+        
         self.multiplexer = ZmqSocket(zmq.REQ, self)
         self.multiplexer.connect(multiplexer_address)
         
+        self.notifier = ZmqSocket(zmq.SUB, self)
+        self.notifier.readyRead.connect(self.notifier_readyRead)
+        self.notifier.subscribe("") #All
+        self.notifier.connect(notifier_address)
+
+    def execute(self, command, args = None):
+        if args is None:
+            args = []
+        self.multiplexer.send_pyobj({"command": command, "args": args})
+        return self.multiplexer.recv_pyobj()
+
+    def notifier_readyRead(self):
+        sid, dump = self.notifier.recv_multipart()
+        if sid in self.sessions:
+            #TODO ver que hacemos con el dump
+            self.sessions[sid].readyRead.emit()
+    
     def close(self):
-        self.multiplexer.send_pyobj({"command": "stop", "args": []})
-        self.multiplexer.recv_pyobj()
+        self.execute("stop")
         if self.process is not None:
             self.process.kill()
             self.process.waitForFinished()
 
+    def platform(self):
+        return self.execute("platform")
+        
     def session(self):
         session = Session(self)
-        session.connect(self.multiplexer_address, self.notifier_address)
+        self.sessions[session.sid()] = session
         return session
 
 class BackendManager(QtCore.QObject):
