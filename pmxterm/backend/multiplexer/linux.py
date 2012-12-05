@@ -80,7 +80,7 @@ class ProcessInfo(object):
             
 
 class Multiplexer(base.Multiplexer):
-    def __init__(self, queue, cmd="/bin/bash", env_term = "xterm-color", timeout=60*60*24):
+    def __init__(self, queue, cmd=os.environ["SHELL"], env_term = "xterm-color", timeout=60*60*24):
         
         base.Multiplexer.__init__(self)
         self.processInfo = ProcessInfo()
