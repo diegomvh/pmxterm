@@ -116,8 +116,7 @@ class TerminalWidget(QtGui.QWidget):
         self.setCursor(QtCore.Qt.IBeamCursor)
         
         # Font
-        font = QtGui.QFont("Monospace", 9)
-        font.setStyleStrategy(font.styleStrategy() | QtGui.QFont.ForceIntegerMetrics)
+        font = QtGui.QFont("Terminal", 10)
         self.setFont(font)
         
         #Session
@@ -136,7 +135,7 @@ class TerminalWidget(QtGui.QWidget):
         self._press_pos = None
         self._selection = None
         self._clipboard = QtGui.QApplication.clipboard()
-                
+
     def send(self, s):
         self.session.write(s)
 
@@ -179,7 +178,12 @@ class TerminalWidget(QtGui.QWidget):
 
 
     def session_readyRead(self):
-        self.session_screenReady(self.session.dump())
+        if not self.session.is_alive():
+            self.sessionClosed.emit()
+            return
+        else:
+            self.session_screenReady(self.session.dump())
+
 
     def session_screenReady(self, screen):
         old_screen = self._screen

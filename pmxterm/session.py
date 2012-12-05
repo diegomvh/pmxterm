@@ -120,7 +120,10 @@ class Backend(QtCore.QObject):
     def notifier_readyRead(self):
         sid, dump = self.notifier.recv_multipart()
         if sid in self.sessions:
-            self.sessions[sid].screenReady.emit(ast.literal_eval(dump))
+            try:
+                self.sessions[sid].screenReady.emit(ast.literal_eval(dump))
+            except:
+                self.sessions[sid].readyRead.emit()
             
     def close(self):
         self.execute("stop")
