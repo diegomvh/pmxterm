@@ -118,12 +118,17 @@ class Backend(QtCore.QObject):
         return self.multiplexer.recv_pyobj()
 
     def notifier_readyRead(self):
-        sid, dump = self.notifier.recv_multipart()
-        if sid in self.sessions:
-            try:
-                self.sessions[sid].screenReady.emit(ast.literal_eval(dump))
-            except:
-                self.sessions[sid].readyRead.emit()
+        message = self.notifier.recv_multipart()
+        if len(message) % 2 == 0:
+            for sid, payload in [message[x: x + 2] for x in xrange(0, len(message), 2)]:
+                if sid in self.sessions:
+                    try:
+                        self.sessions[sid].screenReady.emit(ast.literal_eval(payload))
+                    except:
+                        self.sessions[sid].readyRead.emit()
+        else:
+            print "algo esta mal con", data
+        
             
     def close(self):
         self.execute("stop")
