@@ -131,7 +131,6 @@ class TerminalWidget(QtGui.QWidget):
         self._cursor_rect = None
         self._cursor_col = 0
         self._cursor_row = 0
-        self._blink = False
         self._press_pos = None
         self._selection = None
         self._clipboard = QtGui.QApplication.clipboard()
@@ -188,8 +187,6 @@ class TerminalWidget(QtGui.QWidget):
         old_screen = self._screen
         (self._cursor_col, self._cursor_row), self._screen = screen
         self._update_cursor_rect()
-        if self.hasFocus():
-            self._blink = not self._blink
         self.update()
 
 
@@ -231,10 +228,6 @@ class TerminalWidget(QtGui.QWidget):
 
 
     def _paint_cursor(self, painter):
-        if self._blink:
-            color = "#aaa"
-        else:
-            color = "#fff"
         painter.setPen(QtGui.QPen(QtGui.QColor(color)))
         painter.drawRect(self._cursor_rect)
 

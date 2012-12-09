@@ -6,9 +6,7 @@ import os
 from PyQt4 import QtGui, QtCore
 
 from pmxterm import TerminalWidget
-#from pmxterm.procinfo import ProcessInfo
 from pmxterm.session import Session, BackendManager
-
 
 
 class TabbedTerminal(QtGui.QTabWidget):
