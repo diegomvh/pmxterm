@@ -108,7 +108,7 @@ class TerminalWidget(QtGui.QWidget):
 
 
     def __init__(self, session, parent=None):
-        super(TerminalWidget, self).__init__(parent)
+        QtGui.QWidget.__init__(self, parent)
         self.parent().setTabOrder(self, self)
         self.setFocusPolicy(QtCore.Qt.WheelFocus)
         self.setAutoFillBackground(False)
@@ -125,8 +125,13 @@ class TerminalWidget(QtGui.QWidget):
         self.session.readyRead.connect(self.session_readyRead)
         self.session.screenReady.connect(self.session_screenReady)
         
+        # Scroll
+        self.scrollBar = QtGui.QScrollBar(self)
+        self.scrollBar.setCursor( QtCore.Qt.ArrowCursor )
+        
         self._last_update = None
         self._screen = []
+        self._screen_history = []
         self._text = []
         self._cursor_rect = None
         self._cursor_col = 0
@@ -151,7 +156,7 @@ class TerminalWidget(QtGui.QWidget):
         return self.session.info()
 
     def setFont(self, font):
-        super(TerminalWidget, self).setFont(font)
+        QtGui.QWidget.setFont(self, font)
         self._update_metrics()
 
         
@@ -168,6 +173,7 @@ class TerminalWidget(QtGui.QWidget):
     def resizeEvent(self, event):
         self._columns, self._rows = self._pixel2pos(self.width(), self.height())
         self.session.resize(self._columns, self._rows)
+        self.scrollBar.setGeometry(QtCore.QRect(self.width() - 16, 0, 16, self.height()))
 
 
     def closeEvent(self, event):
@@ -183,8 +189,18 @@ class TerminalWidget(QtGui.QWidget):
             self.session_screenReady(self.session.dump())
 
 
+    def store_history(self, screen):
+        line = screen[0]
+        index = 0
+        for index in xrange(len(self._screen_history), 0, -1):
+            if self._screen_history[index - 1] == line:
+                break
+        self._screen_history[index:] = screen[:]
+        #for line in self._screen_history:
+        #    print line
+        
     def session_screenReady(self, screen):
-        old_screen = self._screen
+        self.store_history(screen[1])
         (self._cursor_col, self._cursor_row), self._screen = screen
         self._update_cursor_rect()
         self.update()
@@ -214,7 +230,7 @@ class TerminalWidget(QtGui.QWidget):
             self._paint_cursor(painter)
         if self._selection:
             self._paint_selection(painter)
-
+        
     def _pixel2pos(self, x, y):
         col = int(round(x / self._char_width))
         row = int(round(y / self._char_height))
@@ -228,13 +244,13 @@ class TerminalWidget(QtGui.QWidget):
 
 
     def _paint_cursor(self, painter):
-        painter.setPen(QtGui.QPen(QtGui.QColor(color)))
+        painter.setPen(QtGui.QPen(QtGui.QColor("#fff")))
         painter.drawRect(self._cursor_rect)
 
 
     def _paint_screen(self, painter):
         # Speed hacks: local name lookups are faster
-        vars().update(QColor=QtGui.QColor, QBrush=QtGui.QBrush, QPen=QtGui.QPen, QRect=QtCore.QRect)
+        #vars().update(QColor=QtGui.QColor, QBrush=QtGui.QBrush, QPen=QtGui.QPen, QRect=QtCore.QRect)
         char_width = self._char_width
         char_height = self._char_height
         painter_drawText = painter.drawText
@@ -274,6 +290,8 @@ class TerminalWidget(QtGui.QWidget):
             y += char_height
             text_append(text_line)
         self._text = text
+        #painter.fillRect(scrollBarArea, self.scrollBar.palette().background())
+        
 
             
     def _paint_selection(self, painter):
