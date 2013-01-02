@@ -80,37 +80,25 @@ class Session(QtCore.QObject):
         return self.backend.execute("session_info", [self._session_id])
         
 class Backend(QtCore.QObject):
-    def __init__(self, name, multiplexer_address, notifier_address, process = None, parent = None):
+    started = QtCore.pyqtSignal()
+    finished = QtCore.pyqtSignal(int)
+    def __init__(self, name, parent = None):
         QtCore.QObject.__init__(self, parent)
         self.name = name
-        self.process = process   # If backend is local
-        
-        if self.process is not None:
-            self.process.finished.connect(self.backend_finished)
-            self.process.readyReadStandardError.connect(self.backend_readyReadStandardError)
-            self.process.readyReadStandardOutput.connect(self.backend_readyReadStandardOutput)
-        
         self.sessions = {}
         
+
+    #------------ Sockets
+    def startMultiplexer(self, address):
         self.multiplexer = ZmqSocket(zmq.REQ, self)
-        self.multiplexer.connect(multiplexer_address)
-        
+        self.multiplexer.connect(address)
+    
+    def startNotifier(self, address):
         self.notifier = ZmqSocket(zmq.SUB, self)
         self.notifier.readyRead.connect(self.notifier_readyRead)
         self.notifier.subscribe("") #All
-        self.notifier.connect(notifier_address)
-
-    #------------ Process Signals
-    def backend_finished(self):
-        # emitir una señal de que se murio uno backend
-        print "se murio el backend"
+        self.notifier.connect(address)
         
-    def backend_readyReadStandardError(self):
-        print str(self.process.readAllStandardError()).decode("utf-8")
-        
-    def backend_readyReadStandardOutput(self):
-        print str(self.process.readAllStandardOutput()).decode("utf-8")
-
     def execute(self, command, args = None):
         if args is None:
             args = []
@@ -130,11 +118,11 @@ class Backend(QtCore.QObject):
             print "algo esta mal con", data
         
             
+    def start(self):
+        self.started.emit()
+        
     def close(self):
         self.execute("stop")
-        if self.process is not None:
-            self.process.kill()
-            self.process.waitForFinished()
 
     def platform(self):
         return self.execute("platform")
@@ -143,6 +131,77 @@ class Backend(QtCore.QObject):
         session = Session(self)
         self.sessions[session.sid()] = session
         return session
+
+class LocalBackend(Backend):
+    
+    def __init__(self, parent = None):
+        Backend.__init__(self, 'local', parent)
+        self.process = QtCore.QProcess(self)
+        self.protocol = 'ipc' if sys.platform.startswith('linux') else 'tcp'
+        self.address = None
+        self.ready = False
+
+
+    def start(self):
+        args = [LOCAL_BACKEND_SCRIPT, "-t", self.protocol]
+        if self.address is not None:
+            args.extend(["-a", self.address])
+
+        self.process.readyReadStandardError.connect(self.backend_start_readyReadStandardError)
+        self.process.readyReadStandardOutput.connect(self.backend_start_readyReadStandardOutput)
+        self.process.start(sys.executable, args)
+
+
+    def close(self):
+        Backend.close(self)
+        self.process.kill()
+        self.process.waitForFinished()
+        print "se termino"
+        
+    #------------ Process Start Signal
+    def backend_start_readyReadStandardOutput(self):
+        connectionString = str(self.process.readAllStandardOutput()).decode("utf-8").splitlines()[-1]
+        data = ast.literal_eval(connectionString)
+        self.startMultiplexer(data["multiplexer"])
+        self.startNotifier(data["notifier"])
+        self.process.readyReadStandardError.disconnect(self.backend_start_readyReadStandardError)
+        self.process.readyReadStandardOutput.disconnect(self.backend_start_readyReadStandardOutput)
+        self.process.readyReadStandardError.connect(self.backend_readyReadStandardError)
+        self.process.readyReadStandardOutput.connect(self.backend_readyReadStandardOutput)
+        self.process.finished.connect(self.backend_finished)
+        self.started.emit()
+
+    def backend_start_readyReadStandardError(self):
+        print str(self.process.readAllStandardError()).decode("utf-8")
+        self.process.readyReadStandardError.disconnect(self.backend_start_readyReadStandardError)
+        self.process.readyReadStandardOutput.disconnect(self.backend_start_readyReadStandardOutput)
+        self.finished.emit(-1)
+
+    #------------ Process Normal Signals
+    def backend_finished(self):
+        self.finished.emit(0)
+
+        
+    def backend_readyReadStandardError(self):
+        print str(self.process.readAllStandardError()).decode("utf-8")
+
+        
+    def backend_readyReadStandardOutput(self):
+        print str(self.process.readAllStandardOutput()).decode("utf-8")
+        
+    
+    # -------------- set backend process attrs and settings
+    def setWorkingDirectory(self, directory):
+        self.process.setWorkingDirectory(directory)
+
+
+    def setProtocol(self, protocol):
+        self.protocol = protocol
+
+
+    def setAddress(self, address):
+        self.address = address
+
 
 class BackendManager(QtCore.QObject):
     def __init__(self, parent = None):
@@ -153,29 +212,25 @@ class BackendManager(QtCore.QObject):
         for backend in self.backends:
             backend.close()
     
-    def backend(self, name, connection, process = None):
-        data = ast.literal_eval(connection)
-        backend = Backend(name, data["multiplexer"], data["notifier"], process = process, parent = self)
+    def backend(self, name, connectionString):
+        data = ast.literal_eval(connectionString)
+        backend = Backend(name, parent = self)
+        backend.startMultiplexer(data["multiplexer"])
+        backend.startNotifier(data["notifier"])
         self.backends.append(backend)
         return backend
         
     def localBackend(self, workingDirectory = None, protocol = None, address = None):
-        if protocol is None:
-            protocol = 'ipc' if sys.platform.startswith('linux') else 'tcp'
-        args = [LOCAL_BACKEND_SCRIPT, "-t", protocol]
+        backend = LocalBackend(self)
         
-        process = QtCore.QProcess(self)
+        if protocol is not None:
+            backend.setProtocol(protocol)
         
         if workingDirectory:
-            process.setWorkingDirectory(workingDirectory)
+            backend.setWorkingDirectory(workingDirectory)
             
         if address is not None:
-            args.extend(["-a", address])
-        
-        process.start(sys.executable, args)    
-        dataAvailable  = process.waitForReadyRead(1000)
-        if dataAvailable:
-            lines = str(process.readAllStandardOutput()).decode("utf-8").splitlines()
-            return self.backend("local", lines[-1], process)
-        else:
-            print str(process.readAllStandardError()).decode("utf-8")
+            backend.setAddress(address)
+
+        self.backends.append(backend)
+        return backend
