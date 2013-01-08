@@ -156,7 +156,7 @@ class LocalBackend(Backend):
         Backend.close(self)
         self.process.kill()
         self.process.waitForFinished()
-        print "se termino"
+
         
     #------------ Process Start Signal
     def backend_start_readyReadStandardOutput(self):
@@ -171,17 +171,19 @@ class LocalBackend(Backend):
         self.process.finished.connect(self.backend_finished)
         self.started.emit()
 
+
     def backend_start_readyReadStandardError(self):
         print str(self.process.readAllStandardError()).decode("utf-8")
         self.process.readyReadStandardError.disconnect(self.backend_start_readyReadStandardError)
         self.process.readyReadStandardOutput.disconnect(self.backend_start_readyReadStandardOutput)
         self.finished.emit(-1)
 
+
     #------------ Process Normal Signals
     def backend_finished(self):
         self.finished.emit(0)
 
-        
+
     def backend_readyReadStandardError(self):
         print str(self.process.readAllStandardError()).decode("utf-8")
 
