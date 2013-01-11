@@ -185,6 +185,8 @@ class Terminal(object):
         # Scroll parameters
         self.scroll_area_y0 = 0
         self.scroll_area_y1 = self.h
+        self._scroll_area_up = None
+        self._scroll_area_down = None
         # Character sets
         self.vt100_charset_is_single_shift = False
         self.vt100_charset_is_graphical = False
@@ -287,12 +289,14 @@ class Terminal(object):
         n = min(y1-y0, n)
         self.poke(y0, 0, self.peek(y0 + n, 0, y1, self.w))
         self.clear(y1-n, 0, y1, self.w)
+        self._scroll_area_up = n
 
 
     def scroll_area_down(self, y0, y1, n = 1):
         n = min(y1-y0, n)
         self.poke(y0 + n, 0, self.peek(y0, 0, y1-n, self.w))
         self.clear(y0, 0, y0 + n, self.w)
+        self._scroll_area_down = n
 
 
     def scroll_area_set(self, y0, y1):
@@ -1184,5 +1188,7 @@ class Terminal(object):
             screen.append(line)
 
         screen.append([(0x000f, 0x000e, False), u" " * self.w])
-        
-        return (cx, cy), screen
+        # Scroll values
+        su, sd = self._scroll_area_up, self._scroll_area_down
+        self._scroll_area_up = self._scroll_area_down = None
+        return (cx, cy, su, sd), screen

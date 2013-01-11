@@ -122,16 +122,21 @@ class TerminalWidget(QtGui.QWidget):
         
         #Session
         self.session = session
-        self.session.readyRead.connect(self.session_readyRead)
-        self.session.screenReady.connect(self.session_screenReady)
+        self.session.readyRead.connect(self.on_session_readyRead)
+        self.session.screenReady.connect(self.on_session_screenReady)
         
         # Scroll
         self.scrollBar = QtGui.QScrollBar(self)
         self.scrollBar.setCursor( QtCore.Qt.ArrowCursor )
+        self.scrollBar.setVisible(False)
+        self.scrollBar.setMinimum(0)
+        self.scrollBar.sliderMoved.connect(self.on_scrollBar_sliderMoved)
+        
         
         self._last_update = None
         self._screen = []
         self._screen_history = []
+        self._history_index = 0
         self._text = []
         self._cursor_rect = None
         self._cursor_col = 0
@@ -139,7 +144,29 @@ class TerminalWidget(QtGui.QWidget):
         self._press_pos = None
         self._selection = None
         self._clipboard = QtGui.QApplication.clipboard()
-                
+
+
+    # ---------------- Signals
+    def on_session_readyRead(self):
+        if not self.session.is_alive():
+            self.sessionClosed.emit()
+        else:
+            self.on_session_screenReady(self.session.dump())
+
+
+    def on_session_screenReady(self, data):
+        (self._cursor_col, self._cursor_row, scroll_up, scroll_down), screen = data
+        if scroll_up:
+            self.store_history(scroll_up, self._screen)
+        self._screen = screen
+        self._update_cursor_rect()
+        self.update()
+        
+        
+    def on_scrollBar_sliderMoved(self, value):
+        self._history_index = value
+        self.update()
+        
     def send(self, s):
         self.session.write(s)
 
@@ -154,6 +181,7 @@ class TerminalWidget(QtGui.QWidget):
 
     def info(self):
         return self.session.info()
+
 
     def setFont(self, font):
         QtGui.QWidget.setFont(self, font)
@@ -182,28 +210,13 @@ class TerminalWidget(QtGui.QWidget):
         self.session.close()
 
 
-    def session_readyRead(self):
-        if not self.session.is_alive():
-            self.sessionClosed.emit()
-        else:
-            self.session_screenReady(self.session.dump())
-
-
-    def store_history(self, screen):
-        line = screen[0]
-        index = 0
-        for index in xrange(len(self._screen_history), 0, -1):
-            if self._screen_history[index - 1] == line:
-                break
-        self._screen_history[index:] = screen[:]
-        #for line in self._screen_history:
-        #    print line
-        
-    def session_screenReady(self, screen):
-        self.store_history(screen[1])
-        (self._cursor_col, self._cursor_row), self._screen = screen
-        self._update_cursor_rect()
-        self.update()
+    def store_history(self, lines, screen):
+        self._screen_history.extend(screen[:lines])
+        # TODO controlas el maximo hisotrial permitido
+        self._history_index = len(self._screen_history)
+        self.scrollBar.setVisible(True)
+        self.scrollBar.setMaximum(self._history_index)
+        self.scrollBar.setValue(self._history_index)
 
 
     def _update_metrics(self):
@@ -250,7 +263,8 @@ class TerminalWidget(QtGui.QWidget):
 
     def _paint_screen(self, painter):
         # Speed hacks: local name lookups are faster
-        #vars().update(QColor=QtGui.QColor, QBrush=QtGui.QBrush, QPen=QtGui.QPen, QRect=QtCore.QRect)
+        vars().update(QColor=QtGui.QColor, QBrush=QtGui.QBrush, QPen=QtGui.QPen, QRect=QtCore.QRect)
+        
         char_width = self._char_width
         char_height = self._char_height
         painter_drawText = painter.drawText
@@ -267,7 +281,9 @@ class TerminalWidget(QtGui.QWidget):
         y = 0
         text = []
         text_append = text.append
-        for row, line in enumerate(self._screen):
+        # Calculate viewscreen
+        viewscreen = (self._screen_history + self._screen)[self._history_index:self._history_index + len(self._screen)]
+        for row, line in enumerate(viewscreen):
             col = 0
             text_line = ""
             for item in line:
