@@ -3,12 +3,16 @@
 
 # This code is based on the source of pyqterm from Henning Schroeder (henning.schroeder@gmail.com)
 # License: GPL2
-
+# http://www.frexx.de/xterm-256-notes/
+# http://www.calmar.ws/vim/256-xterm-24bit-rgb-color-chart.html
+# http://vim.wikia.com/wiki/Xterm256_color_names_for_console_Vim
+# http://shallowsky.com/blog/2011/Jan/18/
 
 import array
 
 class Terminal(object):
-
+    CHARACTERS = 0
+    ATTRIBUTES = 1
 
     def __init__(self, w, h):
         self.w = w
@@ -185,8 +189,7 @@ class Terminal(object):
         # Scroll parameters
         self.scroll_area_y0 = 0
         self.scroll_area_y1 = self.h
-        self._scroll_area_up = None
-        self._scroll_area_down = None
+        self._scroll_area_down = self._scroll_area_up = 0
         # Character sets
         self.vt100_charset_is_single_shift = False
         self.vt100_charset_is_graphical = False
@@ -211,8 +214,10 @@ class Terminal(object):
 
     def reset_screen(self):
         # Screen
-        self.screen = array.array('i', [self.attr | 0x20] * self.w * self.h)
-        self.screen2 = array.array('i', [self.attr | 0x20] * self.w * self.h)
+        self.screen = (array.array('b', [ 0x20 ] * self.w * self.h),
+                    array.array('i', [ self.attr ] * self.w * self.h))
+        self.screen2 = (array.array('b', [ 0x20 ] * self.w * self.h),
+                    array.array('i', [ self.attr ] * self.w * self.h))
         # Scroll parameters
         self.scroll_area_y0 = 0
         self.scroll_area_y1 = self.h
@@ -267,21 +272,22 @@ class Terminal(object):
 
     # Low-level terminal functions
     def peek(self, y0, x0, y1, x1):
-        return self.screen[self.w * y0 + x0:self.w * (y1 - 1) + x1]
+        return self.screen[self.CHARACTERS][self.w * y0 + x0:self.w * (y1 - 1) + x1], self.screen[self.ATTRIBUTES][self.w * y0 + x0:self.w * (y1 - 1) + x1]
 
 
     def poke(self, y, x, s):
         pos = self.w * y + x
-        self.screen[pos:pos + len(s)] = s
+        self.screen[self.CHARACTERS][pos:pos + len(s)], self.screen[self.ATTRIBUTES][pos:pos + len(s)] = s
 
 
-    def fill(self, y0, x0, y1, x1, char):
+    def fill(self, y0, x0, y1, x1, char, attr):
         n = self.w * (y1 - y0 - 1) + (x1 - x0)
-        self.poke(y0, x0, array.array('i', [char] * n))
+        self.poke(y0, x0, (array.array('b', [ char ] * n),
+            array.array('i', [ attr ] * n)))
 
 
     def clear(self, y0, x0, y1, x1):
-        self.fill(y0, x0, y1, x1, self.attr | 0x20)
+        self.fill(y0, x0, y1, x1, 0x20, self.attr)
 
 
     # Scrolling functions
@@ -289,14 +295,14 @@ class Terminal(object):
         n = min(y1-y0, n)
         self.poke(y0, 0, self.peek(y0 + n, 0, y1, self.w))
         self.clear(y1-n, 0, y1, self.w)
-        self._scroll_area_up = n
+        self._scroll_area_up += n
 
 
     def scroll_area_down(self, y0, y1, n = 1):
         n = min(y1-y0, n)
         self.poke(y0 + n, 0, self.peek(y0, 0, y1-n, self.w))
         self.clear(y0, 0, y0 + n, self.w)
-        self._scroll_area_down = n
+        self._scroll_area_down += n
 
 
     def scroll_area_set(self, y0, y1):
@@ -326,7 +332,7 @@ class Terminal(object):
         wx = self.utf8_charwidth(next_char)
         lx = 0
         for x in range(min(self.cx, self.w)):
-            char = self.peek(self.cy, x, self.cy + 1, x + 1)[0] & 0xffff
+            char = self.peek(self.cy, x, self.cy + 1, x + 1)[self.CHARACTERS][0]
             wx += self.utf8_charwidth(char)
             lx += 1
         return wx, lx
@@ -427,7 +433,9 @@ class Terminal(object):
             self.vt100_charset_is_single_shift = False
         elif self.vt100_charset_is_graphical and (char & 0xffe0) == 0x0060:
             char = self.vt100_charset_graph[char - 0x60]
-        self.poke(self.cy, self.cx, array.array('i', [self.attr | char]))
+        self.poke(self.cy, self.cx, 
+            (array.array('b', [ char ]),
+            array.array('i', [ self.attr ])))
         self.cursor_set_x(self.cx + 1)
 
 
@@ -518,7 +526,7 @@ class Terminal(object):
 
     def esc_DECALN(self):
         # Screen alignment display
-        self.fill(0, 0, self.h, self.w, 0x00fe0045)
+        self.fill(0, 0, self.h, self.w, 0x45, 0x00fe0000)
 
 
     def esc_G0_0(self):
@@ -1153,9 +1161,8 @@ class Terminal(object):
             attr_ = -1
             line = [""]
             for x in range(0, self.w):
-                d = self.screen[y * self.w + x]
-                char = d & 0xffff
-                attr = d >> 16
+                char = self.screen[self.CHARACTERS][y * self.w + x]
+                attr = self.screen[self.ATTRIBUTES][y * self.w + x] >> 16
                 # Cursor
                 if cy == y and cx == x and self.vt100_mode_cursor:
                     attr = attr & 0xfff0 | 0x000c
@@ -1190,5 +1197,5 @@ class Terminal(object):
         screen.append([(0x000f, 0x000e, False), u" " * self.w])
         # Scroll values
         su, sd = self._scroll_area_up, self._scroll_area_down
-        self._scroll_area_up = self._scroll_area_down = None
+        self._scroll_area_up = self._scroll_area_down = 0
         return (cx, cy, su, sd), screen
