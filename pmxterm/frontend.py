@@ -88,6 +88,7 @@ class TerminalWidget(QtGui.QWidget):
         self.session = session
         self.session.readyRead.connect(self.on_session_readyRead)
         self.session.screenReady.connect(self.on_session_screenReady)
+        self.session.finished.connect(self.on_session_finished)
         
         # Scroll
         self.scrollBar = QtGui.QScrollBar(self)
@@ -111,8 +112,12 @@ class TerminalWidget(QtGui.QWidget):
 
 
     # ---------------- Signals
+    def on_session_finished(self, status):
+        self.session = None
+        self.sessionClosed.emit()
+        
     def on_session_readyRead(self):
-        if not self.session.is_alive():
+        if not self.is_alive():
             self.sessionClosed.emit()
         else:
             self.on_session_screenReady(self.session.dump())
@@ -144,7 +149,8 @@ class TerminalWidget(QtGui.QWidget):
 
 
     def info(self):
-        return self.session.info()
+        if self.is_alive():
+            return self.session.info()
 
 
     def setFont(self, font):
@@ -153,7 +159,7 @@ class TerminalWidget(QtGui.QWidget):
 
         
     def focusNextPrevChild(self, next):
-        if not self.session.is_alive():
+        if not self.is_alive():
             return True
         return False
 
@@ -169,7 +175,7 @@ class TerminalWidget(QtGui.QWidget):
 
 
     def closeEvent(self, event):
-        if not self.session.is_alive():
+        if not self.is_alive():
             return
         self.session.close()
 
@@ -495,4 +501,4 @@ class TerminalWidget(QtGui.QWidget):
 
         
     def is_alive(self):
-        return (self.session and self.session.is_alive()) or False
+        return self.session and self.session.is_alive()

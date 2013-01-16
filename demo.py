@@ -25,12 +25,16 @@ class TabbedTerminal(QtGui.QTabWidget):
         self._terms = []
         self.tabCloseRequested[int].connect(self._on_close_request)
         self.currentChanged[int].connect(self._on_current_changed)
+        
+        # Manager
         self.backendManager = BackendManager(parent = self)
-        self.localBackend = self.backendManager.localBackend()
-        self.localBackend.started.connect(self.new_terminal)
-        #self.localBackend = self.backendManager.backend("Morena", "{'multiplexer': 'tcp://10.0.0.1:56621', 'notifier': 'tcp://10.0.0.1:54742'}")
-        QtGui.QApplication.instance().lastWindowClosed.connect(self.localBackend.close)
-        self.localBackend.start()
+        QtGui.QApplication.instance().lastWindowClosed.connect(self.backendManager.closeAll)
+        
+        # Local Backend
+        self.backend = self.backendManager.localBackend()
+        self.backend.started.connect(self.new_terminal)
+        self.backend.finished.connect(self.on_backend_finished)
+        self.backend.start()
         
     def _on_close_request(self, idx):
         term = self.widget(idx)
@@ -41,17 +45,22 @@ class TabbedTerminal(QtGui.QTabWidget):
         term = self.widget(idx)
         self._update_title(term)
 
+
+    def on_backend_finished(self, status):
+        # TODO Meterle al backend y a la session un atributo para estado, si estan activos o no
+        self.backend = None
     
     def new_terminal(self):
         # Create session
-        session = self.localBackend.session()
-        term = TerminalWidget(session, parent = self)
-        term.sessionClosed.connect(self._on_session_closed)
-        self.addTab(term, "Terminal")
-        self._terms.append(term)
-        self.setCurrentWidget(term)
-        session.start()
-        term.setFocus()
+        if self.backend:
+            session = self.backend.session()
+            term = TerminalWidget(session, parent = self)
+            term.sessionClosed.connect(self._on_session_closed)
+            self.addTab(term, "Terminal")
+            self._terms.append(term)
+            self.setCurrentWidget(term)
+            session.start()
+            term.setFocus()
 
         
     def timerEvent(self, event):

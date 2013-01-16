@@ -7,6 +7,7 @@ import zmq
 import time
 import json
 import ast
+import signal
 
 from PyQt4 import QtCore
 
@@ -17,18 +18,21 @@ LOCAL_BACKEND_SCRIPT = os.path.join(os.path.dirname(__file__), "backend", "main.
 class Session(QtCore.QObject):
     readyRead = QtCore.pyqtSignal()
     screenReady = QtCore.pyqtSignal(tuple)
+    finished = QtCore.pyqtSignal(int)
     
     def __init__(self, backend, width=80, height=24):
         QtCore.QObject.__init__(self, backend)
         
         self.backend = backend
-        
+        self.backend.finished.connect(lambda status, session = self: session.finished.emit(status))
+
         #Session Id
         self._session_id = "%s-%s" % (time.time(), id(self))
         
         self._width = width
         self._height = height
         self._started = False
+        self._pid = None
         
     def sid(self):
         return self._session_id
@@ -74,7 +78,9 @@ class Session(QtCore.QObject):
         
     
     def pid(self):
-        return self.backend.execute("session_pid", [self._session_id])
+        if self._pid is None:
+            self._pid = self.backend.execute("session_pid", [self._session_id])
+        return self._pid
         
     def info(self):
         return self.backend.execute("session_info", [self._session_id])
@@ -82,6 +88,7 @@ class Session(QtCore.QObject):
 class Backend(QtCore.QObject):
     started = QtCore.pyqtSignal()
     finished = QtCore.pyqtSignal(int)
+    
     def __init__(self, name, parent = None):
         QtCore.QObject.__init__(self, parent)
         self.name = name
@@ -122,7 +129,8 @@ class Backend(QtCore.QObject):
         self.started.emit()
         
     def close(self):
-        self.execute("stop")
+        self.execute("proc_buryall")
+        self.finished.emit(0)
 
     def platform(self):
         return self.execute("platform")
@@ -154,7 +162,7 @@ class LocalBackend(Backend):
 
     def close(self):
         Backend.close(self)
-        self.process.kill()
+        os.kill(self.process.pid(), signal.SIGTERM)
         self.process.waitForFinished()
 
         
