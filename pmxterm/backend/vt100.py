@@ -152,13 +152,13 @@ class Terminal(object):
 
     # Reset functions
     def reset_hard(self):
-        # Attribute mask: 0x0XFB0000
+        # Attribute mask: 0x0X00FFBB
         #	X:	Bit 0 - Underlined
         #		Bit 1 - Negative
         #		Bit 2 - Concealed
         #	F:	Foreground
         #	B:	Background
-        self.attr = 0x00fe0000
+        self.attr = 0x00000700
         # UTF-8 decoder
         self.utf8_units_count = 0
         self.utf8_units_received = 0
@@ -179,13 +179,7 @@ class Terminal(object):
         self.reset_soft()
 
     def reset_soft(self):
-        # Attribute mask: 0x0XFB0000
-        #	X:	Bit 0 - Underlined
-        #		Bit 1 - Negative
-        #		Bit 2 - Concealed
-        #	F:	Foreground
-        #	B:	Background
-        self.attr = 0x00fe0000
+        self.attr = 0x00000700
         # Scroll parameters
         self.scroll_area_y0 = 0
         self.scroll_area_y1 = self.h
@@ -214,9 +208,9 @@ class Terminal(object):
 
     def reset_screen(self):
         # Screen
-        self.screen = (array.array('b', [ 0x20 ] * self.w * self.h),
+        self.screen = (array.array('i', [ 0x20 ] * self.w * self.h),
                     array.array('i', [ self.attr ] * self.w * self.h))
-        self.screen2 = (array.array('b', [ 0x20 ] * self.w * self.h),
+        self.screen2 = (array.array('i', [ 0x20 ] * self.w * self.h),
                     array.array('i', [ self.attr ] * self.w * self.h))
         # Scroll parameters
         self.scroll_area_y0 = 0
@@ -275,32 +269,34 @@ class Terminal(object):
         return self.screen[self.CHARACTERS][self.w * y0 + x0:self.w * (y1 - 1) + x1], self.screen[self.ATTRIBUTES][self.w * y0 + x0:self.w * (y1 - 1) + x1]
 
 
-    def poke(self, y, x, s):
+    def poke(self, y, x, c, a):
         pos = self.w * y + x
-        self.screen[self.CHARACTERS][pos:pos + len(s)], self.screen[self.ATTRIBUTES][pos:pos + len(s)] = s
+        self.screen[self.CHARACTERS][pos:pos + len(c)] = c
+        self.screen[self.ATTRIBUTES][pos:pos + len(a)] = a
 
 
     def fill(self, y0, x0, y1, x1, char, attr):
         n = self.w * (y1 - y0 - 1) + (x1 - x0)
-        self.poke(y0, x0, (array.array('b', [ char ] * n),
-            array.array('i', [ attr ] * n)))
+        self.poke(y0, x0, 
+            array.array('i', [ char ] * n),
+            array.array('i', [ attr ] * n))
 
 
     def clear(self, y0, x0, y1, x1):
-        self.fill(y0, x0, y1, x1, 0x20, self.attr)
+        self.fill(y0, x0, y1, x1, 0x20, 0x00000700)
 
 
     # Scrolling functions
     def scroll_area_up(self, y0, y1, n = 1):
         n = min(y1-y0, n)
-        self.poke(y0, 0, self.peek(y0 + n, 0, y1, self.w))
+        self.poke(y0, 0, *self.peek(y0 + n, 0, y1, self.w))
         self.clear(y1-n, 0, y1, self.w)
         self._scroll_area_up += n
 
 
     def scroll_area_down(self, y0, y1, n = 1):
         n = min(y1-y0, n)
-        self.poke(y0 + n, 0, self.peek(y0, 0, y1-n, self.w))
+        self.poke(y0 + n, 0, *self.peek(y0, 0, y1-n, self.w))
         self.clear(y0, 0, y0 + n, self.w)
         self._scroll_area_down += n
 
@@ -316,14 +312,14 @@ class Terminal(object):
     def scroll_line_right(self, y, x, n = 1):
         if x < self.w:
             n = min(self.w-self.cx, n)
-            self.poke(y, x + n, self.peek(y, x, y + 1, self.w - n))
+            self.poke(y, x + n, *self.peek(y, x, y + 1, self.w - n))
             self.clear(y, x, y + 1, x + n)
 
 
     def scroll_line_left(self, y, x, n = 1):
         if x < self.w:
             n = min(self.w - self.cx, n)
-            self.poke(y, x, self.peek(y, x + n, y + 1, self.w))
+            self.poke(y, x, *self.peek(y, x + n, y + 1, self.w))
             self.clear(y, self.w - n, y + 1, self.w)
 
 
@@ -433,9 +429,9 @@ class Terminal(object):
             self.vt100_charset_is_single_shift = False
         elif self.vt100_charset_is_graphical and (char & 0xffe0) == 0x0060:
             char = self.vt100_charset_graph[char - 0x60]
-        self.poke(self.cy, self.cx, 
-            (array.array('b', [ char ]),
-            array.array('i', [ self.attr ])))
+        self.poke(self.cy, self.cx,
+            array.array('i', [ char ]),
+            array.array('i', [ self.attr ]))
         self.cursor_set_x(self.cx + 1)
 
 
@@ -893,10 +889,15 @@ class Terminal(object):
     def csi_SGR(self, p):
         # Select graphic rendition
         p = self.vt100_parse_params(p, [0])
-        for m in p:
+        colorMapOffset = 30
+        while p:
+            m = p.pop(0)
             if m == 0:
                 # Reset
-                self.attr = 0x00fe0000
+                self.attr = 0x00000700
+            elif m == 1:
+                # Bright
+                colorMapOffset = 22
             elif m == 4:
                 # Underlined
                 self.attr |= 0x01000000
@@ -908,26 +909,25 @@ class Terminal(object):
                 self.attr |= 0x04000000
             elif m == 24:
                 # Not underlined
-                self.attr &= 0x7eff0000
+                self.attr &= 0x7e00ffff
             elif m == 27:
                 # Positive
-                self.attr &= 0x7dff0000
+                self.attr &= 0x7d00ffff
             elif m == 28:
                 # Revealed
-                self.attr &= 0x7bff0000
+                self.attr &= 0x7b00ffff
             elif m >= 30 and m <= 37:
                 # Foreground
-                self.attr = (self.attr & 0x7f0f0000) | ((m - 30) << 20)
+                self.attr = (self.attr & 0x7f0000ff) | ((m - colorMapOffset) << 8)
             elif m == 39:
                 # Default fg color
-                self.attr = (self.attr & 0x7f0f0000) | 0x00f00000
+                self.attr = (self.attr & 0x7f0000ff) | 0x0000700
             elif m >= 40 and m <= 47:
                 # Background
-                self.attr = (self.attr & 0x7ff00000) | ((m - 40) << 16)
+                self.attr = (self.attr & 0x7f00ff00) | ((m - (colorMapOffset + 10)))
             elif m == 49:
                 # Default bg color
-                self.attr = (self.attr & 0x7ff00000) | 0x000e0000
-
+                self.attr = (self.attr & 0x7f00ff00) | 0x00000000
 
     def csi_DSR(self, p):
         # Device status report
@@ -1162,39 +1162,37 @@ class Terminal(object):
             line = [""]
             for x in range(0, self.w):
                 char = self.screen[self.CHARACTERS][y * self.w + x]
-                attr = self.screen[self.ATTRIBUTES][y * self.w + x] >> 16
+                attr = self.screen[self.ATTRIBUTES][y * self.w + x]
                 # Cursor
-                if cy == y and cx == x and self.vt100_mode_cursor:
-                    attr = attr & 0xfff0 | 0x000c
+                #if cy == y and cx == x and self.vt100_mode_cursor:
+                #    attr = attr & 0xfff0 | 0x000c
                 # Attributes
                 if attr != attr_:
                     if attr_ != -1:
                         line.append("")
-                    bg = attr & 0x000f
-                    fg = (attr & 0x00f0) >> 4
+                    bg = attr & 0x000000ff
+                    fg = (attr & 0x0000ff00) >> 8
                     # Inverse
-                    inv = attr & 0x0200
-                    inv2 = self.vt100_mode_inverse
-                    if (inv and not inv2) or (inv2 and not inv):
-                        fg, bg = bg, fg
+                    #inv = attr & 0x0200
+                    #inv2 = self.vt100_mode_inverse
+                    #if (inv and not inv2) or (inv2 and not inv):
+                    #    fg, bg = bg, fg
                     # Concealed
-                    if attr & 0x0400:
-                        fg = 0xc
+                    #if attr & 0x0400:
+                    #    fg = 0xc
                     # Underline
-                    if attr & 0x0100:
-                        ul = True
-                    else:
-                        ul = False
-                    line.append((fg, bg, ul))
+                    #if attr & 0x0100:
+                    #    ul = True
+                    #else:
+                    #    ul = False
+                    line.append((fg, bg, False))
                     line.append("")
                     attr_ = attr
                 wx += self.utf8_charwidth(char)
                 if wx <= self.w:
                     line[-1] += unichr(char)
-            line.extend([(0x000f, 0x000e, False), u""])
             screen.append(line)
 
-        screen.append([(0x000f, 0x000e, False), u" " * self.w])
         # Scroll values
         su, sd = self._scroll_area_up, self._scroll_area_down
         self._scroll_area_up = self._scroll_area_down = 0

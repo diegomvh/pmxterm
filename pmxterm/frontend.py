@@ -19,61 +19,25 @@ DEBUG = False
 
 class TerminalWidget(QtGui.QWidget):
     colormap = {
-      0: "#000",
-      1: "#b00",
-      2: "#0b0",
-      3: "#bb0",
-      4: "#00b",
-      5: "#b0b",
-      6: "#0bb",
-      7: "#bbb",
-      8: "#666",
-      9: "#f00",
-      10: "#0f0",
-      11: "#ff0",
-      12: "#aaa",
-      13: "#f0f", 
-      14: "#000",
-      15: "#fff",
+      0: "#000000",
+      1: "#800000",
+      2: "#008000",
+      3: "#808000",
+      4: "#000080",
+      5: "#800080",
+      6: "#008080",
+      7: "#c0c0c0",
+      8: "#808080",
+      9: "#ff0000",
+      10: "#00ff00",
+      11: "#ffff00",
+      12: "#0000ff",
+      13: "#ff00ff", 
+      14: "#00ffff",
+      15: "#ffffff",
     }
-    
-    foreground_color_map = {
-      0: "#000",
-      1: "#b00",
-      2: "#0b0",
-      3: "#bb0",
-      4: "#00b",
-      5: "#b0b",
-      6: "#0bb",
-      7: "#bbb",
-      8: "#666",
-      9: "#f00",
-      10: "#0f0",
-      11: "#ff0",
-      12: "#00f", # concelaed
-      13: "#f0f", 
-      14: "#000", # negative
-      15: "#fff", # default
-    }
-    DEFAULT_BACKGROUND = 14
-    DEFAULT_FOREGROUND = 15
-    background_color_map = {
-      0: "#000",
-      1: "#b00",
-      2: "#0b0",
-      3: "#bb0",
-      4: "#00b",
-      5: "#b0b",
-      6: "#0bb",
-      7: "#bbb",
-      8: "#666",
-      9: "#f00",
-      10: "#0f0",
-      11: "#ff0",
-      12: "#aaa", # cursor
-      14: "#000", # default
-      15: "#fff", # negative
-    }
+    DEFAULT_BACKGROUND = 0
+    DEFAULT_FOREGROUND = 7
     
     keymap = {
        QtCore.Qt.Key_Backspace: chr(127),
@@ -128,10 +92,10 @@ class TerminalWidget(QtGui.QWidget):
         # Scroll
         self.scrollBar = QtGui.QScrollBar(self)
         self.scrollBar.setCursor( QtCore.Qt.ArrowCursor )
-        self.scrollBar.setVisible(False)
         self.scrollBar.setMinimum(0)
-        self.scrollBar.sliderMoved.connect(self.on_scrollBar_sliderMoved)
-        
+        self.scrollBar.setMaximum(0)
+        self.scrollBar.setValue(0)
+        self.scrollBar.valueChanged.connect(self.on_scrollBar_valueChanged)
         
         self._last_update = None
         self._screen = []
@@ -163,7 +127,7 @@ class TerminalWidget(QtGui.QWidget):
         self.update()
         
         
-    def on_scrollBar_sliderMoved(self, value):
+    def on_scrollBar_valueChanged(self, value):
         self._history_index = value
         self.update()
         
@@ -199,7 +163,7 @@ class TerminalWidget(QtGui.QWidget):
 
 
     def resizeEvent(self, event):
-        self._columns, self._rows = self._pixel2pos(self.width(), self.height())
+        self._columns, self._rows = self._pixel2pos(self.width() - self.scrollBar.width(), self.height())
         self.session.resize(self._columns, self._rows)
         self.scrollBar.setGeometry(QtCore.QRect(self.width() - 16, 0, 16, self.height()))
 
@@ -214,7 +178,6 @@ class TerminalWidget(QtGui.QWidget):
         self._screen_history.extend(screen[:lines])
         # TODO controlas el maximo hisotrial permitido
         self._history_index = len(self._screen_history)
-        self.scrollBar.setVisible(True)
         self.scrollBar.setMaximum(self._history_index)
         self.scrollBar.setValue(self._history_index)
 
@@ -280,7 +243,6 @@ class TerminalWidget(QtGui.QWidget):
         painter_setPen(pen)
         y = 0
         text = []
-        text_append = text.append
         # Calculate viewscreen
         viewscreen = (self._screen_history + self._screen)[self._history_index:self._history_index + len(self._screen)]
         for row, line in enumerate(viewscreen):
@@ -302,14 +264,24 @@ class TerminalWidget(QtGui.QWidget):
                     pen = QtGui.QPen(QtGui.QColor(foreground_color))
                     brush = QtGui.QBrush(QtGui.QColor(background_color))
                     painter_setPen(pen)
-                    #painter.setBrush(brush)
-            y += char_height
-            text_append(text_line)
-        self._text = text
-        #painter.fillRect(scrollBarArea, self.scrollBar.palette().background())
-        
 
+            # Clear last column            
+            rect = QtCore.QRect(col * char_width, y, self.width(), y + char_height)
+            brush = QtGui.QBrush(QtGui.QColor(self.colormap[self.DEFAULT_BACKGROUND]))
+            painter_fillRect(rect, brush)
             
+            y += char_height
+            text.append(text_line)
+
+        # Store text
+        self._text = text
+        
+        # Clear last lines
+        rect = QtCore.QRect(0, y, self.width(), self.height())
+        brush = QtGui.QBrush(QtGui.QColor(self.colormap[self.DEFAULT_BACKGROUND]))
+        painter_fillRect(rect, brush)
+
+
     def _paint_selection(self, painter):
         pcol = QtGui.QColor(200, 200, 200, 50)
         pen = QtGui.QPen(pcol)
@@ -361,6 +333,8 @@ class TerminalWidget(QtGui.QWidget):
         elif ctrl and key == QtCore.Qt.Key_Minus:
                 self.zoom_out()
         else:
+            if self.scrollBar.maximum() != self._history_index:
+                self.scrollBar.setValue(self.scrollBar.maximum())
             if text and key != QtCore.Qt.Key_Backspace:
                 self.send(text.encode("utf-8"))
             else:
