@@ -919,12 +919,19 @@ class Terminal(object):
             elif m >= 30 and m <= 37:
                 # Foreground
                 self.attr = (self.attr & 0x7f0000ff) | ((m - colorMapOffset) << 8)
+            elif m == 38 and p and p[0] == 5 and 0 <= p[1] <= 255:
+                self.attr = (self.attr & 0x7f0000ff) | (p[1] << 8)
+                p = p[2:]
             elif m == 39:
                 # Default fg color
                 self.attr = (self.attr & 0x7f0000ff) | 0x0000700
             elif m >= 40 and m <= 47:
                 # Background
                 self.attr = (self.attr & 0x7f00ff00) | ((m - (colorMapOffset + 10)))
+            elif m == 48 and p and p[0] == 5 and 0 <= p[1] <= 255:
+                # 255 Background Mode
+                self.attr = (self.attr & 0x7f00ff00) | p[1]
+                p = p[2:]
             elif m == 49:
                 # Default bg color
                 self.attr = (self.attr & 0x7f00ff00) | 0x00000000

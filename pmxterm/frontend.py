@@ -13,29 +13,13 @@ import time
 from PyQt4 import QtCore, QtGui
 
 from session import Session
+from colortrans import SHORT2RGB_DICT
 
 DEBUG = False
 
 
 class TerminalWidget(QtGui.QWidget):
-    colormap = {
-      0: "#000000",
-      1: "#800000",
-      2: "#008000",
-      3: "#808000",
-      4: "#000080",
-      5: "#800080",
-      6: "#008080",
-      7: "#c0c0c0",
-      8: "#808080",
-      9: "#ff0000",
-      10: "#00ff00",
-      11: "#ffff00",
-      12: "#0000ff",
-      13: "#ff00ff", 
-      14: "#00ffff",
-      15: "#ffffff",
-    }
+    colormap = SHORT2RGB_DICT
     DEFAULT_BACKGROUND = 0
     DEFAULT_FOREGROUND = 7
     
@@ -243,9 +227,9 @@ class TerminalWidget(QtGui.QWidget):
         # set defaults
         background_color = self.colormap[self.DEFAULT_BACKGROUND]
         foreground_color = self.colormap[self.DEFAULT_FOREGROUND]
-        brush = QtGui.QBrush(QtGui.QColor(background_color))
+        brush = QtGui.QBrush(QtGui.QColor("#" + background_color))
         painter_fillRect(self.rect(), brush)
-        pen = QtGui.QPen(QtGui.QColor(foreground_color))
+        pen = QtGui.QPen(QtGui.QColor("#" + foreground_color))
         painter_setPen(pen)
         y = 0
         text = []
@@ -264,16 +248,17 @@ class TerminalWidget(QtGui.QWidget):
                     col += length
                     text_line += item
                 else:
+                    print item
                     foreground_color_idx, background_color_idx, underline_flag = item
                     foreground_color = self.colormap[foreground_color_idx]
                     background_color = self.colormap[background_color_idx]
-                    pen = QtGui.QPen(QtGui.QColor(foreground_color))
-                    brush = QtGui.QBrush(QtGui.QColor(background_color))
+                    pen = QtGui.QPen(QtGui.QColor("#" + foreground_color))
+                    brush = QtGui.QBrush(QtGui.QColor("#" + background_color))
                     painter_setPen(pen)
 
             # Clear last column            
             rect = QtCore.QRect(col * char_width, y, self.width(), y + char_height)
-            brush = QtGui.QBrush(QtGui.QColor(self.colormap[self.DEFAULT_BACKGROUND]))
+            brush = QtGui.QBrush(QtGui.QColor("#" + self.colormap[self.DEFAULT_BACKGROUND]))
             painter_fillRect(rect, brush)
             
             y += char_height
@@ -284,7 +269,7 @@ class TerminalWidget(QtGui.QWidget):
         
         # Clear last lines
         rect = QtCore.QRect(0, y, self.width(), self.height())
-        brush = QtGui.QBrush(QtGui.QColor(self.colormap[self.DEFAULT_BACKGROUND]))
+        brush = QtGui.QBrush(QtGui.QColor("#" + self.colormap[self.DEFAULT_BACKGROUND]))
         painter_fillRect(rect, brush)
 
 
