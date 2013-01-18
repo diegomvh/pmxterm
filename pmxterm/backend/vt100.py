@@ -160,7 +160,7 @@ class Terminal(object):
         #		Bit 2 - Concealed
         #	F:	Foreground
         #	B:	Background
-        self.attr = self.DEFAULTATTR
+        self.attr = constants.DEFAULTSGR
         # UTF-8 decoder
         self.utf8_units_count = 0
         self.utf8_units_received = 0
@@ -181,7 +181,7 @@ class Terminal(object):
         self.reset_soft()
 
     def reset_soft(self):
-        self.attr = self.DEFAULTATTR
+        self.attr = constants.DEFAULTSGR
         # Scroll parameters
         self.scroll_area_y0 = 0
         self.scroll_area_y1 = self.h
@@ -285,7 +285,7 @@ class Terminal(object):
 
 
     def clear(self, y0, x0, y1, x1):
-        self.fill(y0, x0, y1, x1, 0x20, self.DEFAULTATTR)
+        self.fill(y0, x0, y1, x1, 0x20, constants.DEFAULTSGR)
 
 
     # Scrolling functions
@@ -892,12 +892,12 @@ class Terminal(object):
         # Select graphic rendition
         p = self.vt100_parse_params(p, [0])
         if not p:
-            self.attr = self.DEFAULTATTR
+            self.attr = constants.DEFAULTSGR
         while p:
             m = p.pop(0)
             if m == 0:
                 # Reset
-                self.attr = self.DEFAULTATTR
+                self.attr = constants.DEFAULTSGR
             elif m == 1:
                 # Bright
                 self.attr |= constants.SGR1

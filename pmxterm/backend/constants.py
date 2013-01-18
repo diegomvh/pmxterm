@@ -23,3 +23,5 @@ SGR39 = 0x10000000
 
 # Default background color
 SGR49 = 0x20000000
+
+DEFAULTSGR = SGR39 | SGR49

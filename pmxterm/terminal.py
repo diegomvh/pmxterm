@@ -12,17 +12,13 @@ import time
 
 from PyQt4 import QtCore, QtGui
 
-from colortrans import SHORT2RGB_DICT
 from backend import constants
+import schemes
 
 DEBUG = False
 
 
 class TerminalWidget(QtGui.QWidget):
-    colormap = SHORT2RGB_DICT
-    DEFAULT_BACKGROUND = 0
-    DEFAULT_FOREGROUND = 7
-    
     keymap = {
        QtCore.Qt.Key_Backspace: chr(127),
        QtCore.Qt.Key_Escape: chr(27),
@@ -82,6 +78,9 @@ class TerminalWidget(QtGui.QWidget):
         self.scrollBar.setValue(0)
         self.scrollBar.valueChanged.connect(self.on_scrollBar_valueChanged)
         
+        # ColorSchema
+        self.schema =  schemes.vim
+        
         self._last_update = None
         self._screen = []
         self._screen_history = []
@@ -122,28 +121,20 @@ class TerminalWidget(QtGui.QWidget):
 
 
     # ------------------ Colors
-    def backgroundColor(self, index = None, attrs = None):
+    def backgroundColor(self, index = None, attrs = constants.DEFAULTSGR):
         if index is None:
-            index = self.DEFAULT_BACKGROUND
-        if attrs is not None:
-            if attrs & constants.SGR49:
-                index = self.DEFAULT_BACKGROUND
-        return self.color(index)
+            return self.schema.background()
+        if attrs & constants.SGR49:
+            return self.schema.background()
+        return self.schema.color(index)
         
         
-    def foregroundColor(self, index = None, attrs = None):
+    def foregroundColor(self, index = None, attrs = constants.DEFAULTSGR):
         if index is None:
-            index = self.DEFAULT_FOREGROUND
-        if attrs is not None:
-            if attrs & constants.SGR39:
-                index = self.DEFAULT_FOREGROUND
-            if attrs & constants.SGR1:
-                index += 8
-        return self.color(index)
-
-    
-    def color(self, index):
-        return QtGui.QColor("#" + self.colormap[index])
+             return self.schema.foreground()
+        if attrs & constants.SGR39:
+            return self.schema.foreground(intensive = bool(attrs & constants.SGR1))
+        return self.schema.color(index, intensive = bool(attrs & constants.SGR1))
 
         
     def font(self, attrs):
@@ -240,8 +231,11 @@ class TerminalWidget(QtGui.QWidget):
 
 
     def _paint_cursor(self, painter):
-        painter.setPen(QtGui.QPen(QtGui.QColor("#fff")))
-        painter.drawRect(self._cursor_rect)
+        painter.setPen(QtGui.QPen(self.foregroundColor()))
+        if self.hasFocus():
+            painter.fillRect(self._cursor_rect, QtGui.QBrush(self.foregroundColor()))
+        else:
+            painter.drawRect(self._cursor_rect)
 
 
     def _paint_screen(self, painter):
@@ -278,7 +272,6 @@ class TerminalWidget(QtGui.QWidget):
                 else:
                     #print item[0], item[1], hex(item[2])
                     foreground_color_idx, background_color_idx, flags = item
-                    background_color = self.colormap[background_color_idx]
                     pen = QtGui.QPen(self.foregroundColor(foreground_color_idx, flags))
                     brush = QtGui.QBrush(self.backgroundColor(background_color_idx, flags))
                     painter_setPen(pen)
