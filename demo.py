@@ -5,8 +5,8 @@ import os
 
 from PyQt4 import QtGui, QtCore
 
-from pmxterm import TerminalWidget
-from pmxterm.session import Session, BackendManager
+from pmxterm.terminal import TerminalWidget
+from pmxterm.frontend.manager import BackendManager
 
 
 class TabbedTerminal(QtGui.QTabWidget):

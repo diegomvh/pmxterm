@@ -9,11 +9,13 @@
 # http://shallowsky.com/blog/2011/Jan/18/
 
 import array
+import constants
 
 class Terminal(object):
     CHARACTERS = 0
     ATTRIBUTES = 1
-
+    DEFAULTATTR = constants.SGR39 | constants.SGR49
+    
     def __init__(self, w, h):
         self.w = w
         self.h = h
@@ -158,7 +160,7 @@ class Terminal(object):
         #		Bit 2 - Concealed
         #	F:	Foreground
         #	B:	Background
-        self.attr = 0x00000700
+        self.attr = self.DEFAULTATTR
         # UTF-8 decoder
         self.utf8_units_count = 0
         self.utf8_units_received = 0
@@ -179,7 +181,7 @@ class Terminal(object):
         self.reset_soft()
 
     def reset_soft(self):
-        self.attr = 0x00000700
+        self.attr = self.DEFAULTATTR
         # Scroll parameters
         self.scroll_area_y0 = 0
         self.scroll_area_y1 = self.h
@@ -283,7 +285,7 @@ class Terminal(object):
 
 
     def clear(self, y0, x0, y1, x1):
-        self.fill(y0, x0, y1, x1, 0x20, 0x00000700)
+        self.fill(y0, x0, y1, x1, 0x20, self.DEFAULTATTR)
 
 
     # Scrolling functions
@@ -889,52 +891,53 @@ class Terminal(object):
     def csi_SGR(self, p):
         # Select graphic rendition
         p = self.vt100_parse_params(p, [0])
-        colorMapOffset = 30
+        if not p:
+            self.attr = self.DEFAULTATTR
         while p:
             m = p.pop(0)
             if m == 0:
                 # Reset
-                self.attr = 0x00000700
+                self.attr = self.DEFAULTATTR
             elif m == 1:
                 # Bright
-                colorMapOffset = 22
+                self.attr |= constants.SGR1
             elif m == 4:
                 # Underlined
-                self.attr |= 0x01000000
+                self.attr |= constants.SGR4
             elif m == 7:
                 # Negative
-                self.attr |= 0x02000000
+                self.attr |= constants.SGR7
             elif m == 8:
                 # Concealed
-                self.attr |= 0x04000000
+                self.attr |= constants.SGR8
             elif m == 24:
                 # Not underlined
-                self.attr &= 0x7e00ffff
+                self.attr &= (constants.SGR4 ^ 0xffffffff)
             elif m == 27:
                 # Positive
-                self.attr &= 0x7d00ffff
+                self.attr &= (constants.SGR7 ^ 0xffffffff)
             elif m == 28:
                 # Revealed
-                self.attr &= 0x7b00ffff
+                self.attr &= (constants.SGR8 ^ 0xffffffff)
             elif m >= 30 and m <= 37:
                 # Foreground
-                self.attr = (self.attr & 0x7f0000ff) | ((m - colorMapOffset) << 8)
+                self.attr = (self.attr & (0xffff00ff ^ constants.SGR39)) | ((m - 30) << 8)
             elif m == 38 and p and p[0] == 5 and 0 <= p[1] <= 255:
-                self.attr = (self.attr & 0x7f0000ff) | (p[1] << 8)
+                self.attr = (self.attr & (0xffff00ff ^ constants.SGR39)) | (p[1] << 8)
                 p = p[2:]
             elif m == 39:
                 # Default fg color
-                self.attr = (self.attr & 0x7f0000ff) | 0x0000700
+                self.attr |= constants.SGR39
             elif m >= 40 and m <= 47:
                 # Background
-                self.attr = (self.attr & 0x7f00ff00) | ((m - (colorMapOffset + 10)))
+                self.attr = (self.attr & (0xffffff00 ^ constants.SGR49)) | (m - 40)
             elif m == 48 and p and p[0] == 5 and 0 <= p[1] <= 255:
                 # 255 Background Mode
-                self.attr = (self.attr & 0x7f00ff00) | p[1]
+                self.attr = (self.attr & (0xffffff00 ^ constants.SGR49)) | p[1]
                 p = p[2:]
             elif m == 49:
                 # Default bg color
-                self.attr = (self.attr & 0x7f00ff00) | 0x00000000
+                self.attr |= constants.SGR49
 
     def csi_DSR(self, p):
         # Device status report
@@ -1179,8 +1182,9 @@ class Terminal(object):
                         line.append("")
                     bg = attr & 0x000000ff
                     fg = (attr & 0x0000ff00) >> 8
+                    flags = (attr & 0xffff0000)
                     # Inverse
-                    #inv = attr & 0x0200
+                    #inv = attr & constants.SGR7
                     #inv2 = self.vt100_mode_inverse
                     #if (inv and not inv2) or (inv2 and not inv):
                     #    fg, bg = bg, fg
@@ -1192,7 +1196,7 @@ class Terminal(object):
                     #    ul = True
                     #else:
                     #    ul = False
-                    line.append((fg, bg, False))
+                    line.append((fg, bg, flags))
                     line.append("")
                     attr_ = attr
                 wx += self.utf8_charwidth(char)
