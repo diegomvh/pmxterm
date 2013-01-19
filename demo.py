@@ -25,7 +25,6 @@ class TabbedTerminal(QtGui.QTabWidget):
         self._terms = []
         self.tabCloseRequested[int].connect(self._on_close_request)
         self.currentChanged[int].connect(self._on_current_changed)
-        
         # Manager
         self.backendManager = BackendManager(parent = self)
         QtGui.QApplication.instance().lastWindowClosed.connect(self.backendManager.closeAll)
@@ -55,6 +54,7 @@ class TabbedTerminal(QtGui.QTabWidget):
         if self.backend:
             session = self.backend.session()
             term = TerminalWidget(session, parent = self)
+            term.setWindowOpacity(0.7)
             term.sessionClosed.connect(self._on_session_closed)
             self.addTab(term, "Terminal")
             self._terms.append(term)
@@ -72,7 +72,6 @@ class TabbedTerminal(QtGui.QTabWidget):
             self.setWindowTitle("Terminal")
             return
         idx = self.indexOf(term)
-        print term.info()
         title = "Terminal"
         self.setTabText(idx, title)
         self.setWindowTitle(title)
@@ -96,6 +95,7 @@ class TabbedTerminal(QtGui.QTabWidget):
 if __name__ == "__main__":
     app = QtGui.QApplication(sys.argv)
     win = TabbedTerminal()
+    win.setWindowOpacity(5)
     win.resize(800, 600)
     win.show()
     app.exec_()

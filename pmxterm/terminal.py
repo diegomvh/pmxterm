@@ -13,7 +13,7 @@ import time
 from PyQt4 import QtCore, QtGui
 
 from backend import constants
-import schemes
+from schemes import SCHEMES
 
 DEBUG = False
 
@@ -79,7 +79,7 @@ class TerminalWidget(QtGui.QWidget):
         self.scrollBar.valueChanged.connect(self.on_scrollBar_valueChanged)
         
         # ColorSchema
-        self.schema =  schemes.vim
+        self.schema =  SCHEMES["Blue on Black"]
         
         self._last_update = None
         self._screen = []
@@ -133,8 +133,8 @@ class TerminalWidget(QtGui.QWidget):
         if index is None:
              return self.schema.foreground()
         if attrs & constants.SGR39:
-            return self.schema.foreground(intensive = bool(attrs & constants.SGR1))
-        return self.schema.color(index, intensive = bool(attrs & constants.SGR1))
+            return self.schema.foreground(intense = bool(attrs & constants.SGR1))
+        return self.schema.color(index, intense = bool(attrs & constants.SGR1))
 
         
     def font(self, attrs):
