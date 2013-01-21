@@ -13,7 +13,7 @@ import time
 from PyQt4 import QtCore, QtGui
 
 from backend import constants
-from schemes import SCHEMES
+from schemes import ColorScheme
 
 DEBUG = False
 
@@ -78,8 +78,8 @@ class TerminalWidget(QtGui.QWidget):
         self.scrollBar.setValue(0)
         self.scrollBar.valueChanged.connect(self.on_scrollBar_valueChanged)
         
-        # ColorSchema
-        self.schema =  SCHEMES["Blue on Black"]
+        # Scheme
+        self.scheme = ColorScheme.default()
         
         self._last_update = None
         self._screen = []
@@ -98,7 +98,8 @@ class TerminalWidget(QtGui.QWidget):
     def on_session_finished(self, status):
         self.session = None
         self.sessionClosed.emit()
-        
+
+
     def on_session_readyRead(self):
         if not self.is_alive():
             self.sessionClosed.emit()
@@ -121,20 +122,25 @@ class TerminalWidget(QtGui.QWidget):
 
 
     # ------------------ Colors
+    def setColorScheme(self, scheme):
+        self.scheme = scheme
+        self.update()
+
+
     def backgroundColor(self, index = None, attrs = constants.DEFAULTSGR):
         if index is None:
-            return self.schema.background()
+            return self.scheme.background()
         if attrs & constants.SGR49:
-            return self.schema.background()
-        return self.schema.color(index)
+            return self.scheme.background()
+        return self.scheme.color(index)
         
         
     def foregroundColor(self, index = None, attrs = constants.DEFAULTSGR):
         if index is None:
-             return self.schema.foreground()
+             return self.scheme.foreground()
         if attrs & constants.SGR39:
-            return self.schema.foreground(intense = bool(attrs & constants.SGR1))
-        return self.schema.color(index, intense = bool(attrs & constants.SGR1))
+            return self.scheme.foreground(intense = bool(attrs & constants.SGR1))
+        return self.scheme.color(index, intense = bool(attrs & constants.SGR1))
 
         
     def font(self, attrs):

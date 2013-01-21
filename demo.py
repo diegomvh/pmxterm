@@ -7,7 +7,9 @@ from PyQt4 import QtGui, QtCore
 
 from pmxterm.terminal import TerminalWidget
 from pmxterm.frontend.manager import BackendManager
+from pmxterm.schemes import ColorScheme
 
+ColorScheme.loadSchemes(os.path.abspath("schemes"))
 
 class TabbedTerminal(QtGui.QTabWidget):
 
@@ -54,7 +56,9 @@ class TabbedTerminal(QtGui.QTabWidget):
         if self.backend:
             session = self.backend.session()
             term = TerminalWidget(session, parent = self)
-            term.setWindowOpacity(0.7)
+            scheme = ColorScheme.scheme("Solarized Dark")
+            if scheme:
+                term.setColorScheme(scheme)
             term.sessionClosed.connect(self._on_session_closed)
             self.addTab(term, "Terminal")
             self._terms.append(term)
@@ -95,7 +99,6 @@ class TabbedTerminal(QtGui.QTabWidget):
 if __name__ == "__main__":
     app = QtGui.QApplication(sys.argv)
     win = TabbedTerminal()
-    win.setWindowOpacity(5)
     win.resize(800, 600)
     win.show()
     app.exec_()

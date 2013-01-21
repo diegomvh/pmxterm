@@ -9,10 +9,9 @@ from PyQt4 import QtGui
 
 from colortrans import SHORT2RGB_DICT
 
-SCHEMES_PATTERN = "/usr/share/apps/konsole/*.colorscheme"
-SCHEMES = {}
 
-class ColorSchema(object):
+class ColorScheme(object):
+    SCHEMES = {}
     CONFIG_KEYS = [ 'Background', 'BackgroundIntense',
                     'Color0', 'Color0Intense',
                     'Color1', 'Color1Intense',
@@ -63,29 +62,42 @@ class ColorSchema(object):
     def setColor(self, index, color, intense = False):
         self.colormap[self.mapIndex(index, intense)] = color
 
-    @classmethod
-    def loadSchema(self, path):
-        config = ConfigParser()
-        config.read(path)
-        general = dict(config.items("General"))
-        schema = ColorSchema(general["description"])
-        for name in self.CONFIG_KEYS:
-            index = -1
-            color = config.get(name, "Color")
-            rgb = "".join(map(lambda v: "%02x" % int(v), color.split(",")))
-            color = QtGui.QColor("#" + rgb)
-            intense = name.rfind("Intense")
-            if intense != -1:
-                name = name[:intense]
-            if name.startswith("Color"):
-                name, index = name[:-1], int(name[-1])
-            setter = getattr(schema, "set%s" % name)
-            if index != -1:
-                setter(index, color, intense != -1)
-            else:
-                setter(color, intense != -1)
-        return schema
 
-for fileName in glob.glob(pathname=SCHEMES_PATTERN):
-    schema = ColorSchema.loadSchema(fileName)
-    SCHEMES[schema.name] = schema
+    @classmethod
+    def default(cls):
+        default = ColorScheme("default")
+        default.setBackground(QtGui.QColor("#000000"))
+        default.setBackground(QtGui.QColor("#000000"), intense = True)
+        default.setForeground(QtGui.QColor("#FFFFFF"))
+        default.setForeground(QtGui.QColor("#FFFFFF"), intense = True)
+        return default
+
+
+    @classmethod
+    def scheme(cls, name):
+        return cls.SCHEMES.get(name)
+
+
+    @classmethod
+    def loadSchemes(cls, schemesPath):
+        for fileName in glob.glob(pathname=os.path.join(schemesPath, "*.colorscheme")):
+            config = ConfigParser()
+            config.read(fileName)
+            general = dict(config.items("General"))
+            scheme = ColorScheme(general["description"])
+            for name in cls.CONFIG_KEYS:
+                index = -1
+                color = config.get(name, "Color")
+                rgb = "".join(map(lambda v: "%02x" % int(v), color.split(",")))
+                color = QtGui.QColor("#" + rgb)
+                intense = name.rfind("Intense")
+                if intense != -1:
+                    name = name[:intense]
+                if name.startswith("Color"):
+                    name, index = name[:-1], int(name[-1])
+                setter = getattr(scheme, "set%s" % name)
+                if index != -1:
+                    setter(index, color, intense != -1)
+                else:
+                    setter(color, intense != -1)
+            cls.SCHEMES[scheme.name] = scheme
