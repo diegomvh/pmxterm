@@ -85,6 +85,7 @@ class TerminalWidget(QtGui.QWidget):
         self._screen = []
         self._screen_history = []
         self._history_index = 0
+        self._history_lines = 1000
         self._text = []
         self._cursor_rect = None
         self._cursor_col = 0
@@ -193,8 +194,13 @@ class TerminalWidget(QtGui.QWidget):
 
     def store_history(self, lines, screen):
         self._screen_history.extend(screen[:lines])
-        # TODO controlas el maximo hisotrial permitido
         self._history_index = len(self._screen_history)
+        
+        if self._history_index > self._history_lines:
+            index = self._history_index - self._history_lines
+            self._screen_history = self._screen_history[index:]
+            self._history_index = len(self._screen_history)
+
         self.scrollBar.setMaximum(self._history_index)
         self.scrollBar.setValue(self._history_index)
 
@@ -219,7 +225,7 @@ class TerminalWidget(QtGui.QWidget):
     def paintEvent(self, event):
         painter = QtGui.QPainter(self)
         self._paint_screen(painter)
-        if self._cursor_rect is not None:
+        if self._cursor_rect is not None and self.scrollBar.maximum() == self._history_index:
             self._paint_cursor(painter)
         if self._selection:
             self._paint_selection(painter)

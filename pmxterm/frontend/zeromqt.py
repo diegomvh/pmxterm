@@ -67,15 +67,13 @@ class ZmqSocket(QtCore.QObject):
     def connect(self, addr): self._socket.connect(addr)
 
     def activity(self):
-        flags=self._socket.getsockopt(EVENTS)
-        if flags&POLLIN: 
+        flags = self._socket.getsockopt(EVENTS)
+        if flags & POLLIN: 
             self.readyRead.emit()
-        elif flags&POLLOUT: 
+        elif flags & POLLOUT: 
             self.readyWrite.emit()
-        elif flags&POLLERR: 
+        elif flags & POLLERR: 
             print "ZmqSocket.activity(): POLLERR"
-        else: 
-            print "ZmqSocket.activity(): fail"
 
     def _recv(self, flags=NOBLOCK):
         try: _msg=self._socket.recv(flags=flags)
@@ -88,7 +86,8 @@ class ZmqSocket(QtCore.QObject):
         try: _msg=self._socket.recv_multipart(flags=flags)
         except ZMQError as e:
             if e.errno==EAGAIN: return None
-            else: raise ZMQError(e)
+            else:
+                raise ZMQError(e)
         else: return _msg
     
     def recv(self):
