@@ -143,19 +143,28 @@ class TerminalWidget(QtGui.QWidget):
             return self.scheme.foreground(intense = bool(attrs & constants.SGR1))
         return self.scheme.color(index, intense = bool(attrs & constants.SGR1))
 
-        
-    def font(self, attrs):
-        return self.font()
-    
-    
+
+    def mapToStyle(self, foregroundIndex, backgroundIndex, attrs = constants.DEFAULTSGR):
+        foregroundColor = self.foregroundColor(foregroundIndex, attrs)
+        backgroundColor = self.backgroundColor(backgroundIndex, attrs)
+        font = self.font()
+        if attrs & constants.SGR7:
+            foregroundColor, backgroundColor = backgroundColor, foregroundColor
+        if attrs & constants.SGR4:
+            font.setUnderline(True)
+        if attrs & constants.SGR1:
+            font.setBold(True)
+        return (foregroundColor, backgroundColor, font)
+
+
     def send(self, s):
         self.session.write(s)
 
-        
+
     def stop(self):
         self.session.stop()
 
-        
+
     def pid(self):
         return self.session.pid()
 
@@ -259,11 +268,12 @@ class TerminalWidget(QtGui.QWidget):
         painter_drawText = painter.drawText
         painter_fillRect = painter.fillRect
         painter_setPen = painter.setPen
+        painter_setFont = painter.setFont
         align = QtCore.Qt.AlignTop | QtCore.Qt.AlignLeft
         # set defaults
-        brush = QtGui.QBrush(self.backgroundColor())
+        brush = QtGui.QBrush(self.scheme.background())
         painter_fillRect(self.rect(), brush)
-        pen = QtGui.QPen(self.foregroundColor())
+        pen = QtGui.QPen(self.scheme.foreground())
         painter_setPen(pen)
         y = 0
         text = []
@@ -282,10 +292,14 @@ class TerminalWidget(QtGui.QWidget):
                     col += length
                     text_line += item
                 else:
-                    #print item[0], item[1], hex(item[2])
                     foreground_color_idx, background_color_idx, flags = item
-                    pen = QtGui.QPen(self.foregroundColor(foreground_color_idx, flags))
-                    brush = QtGui.QBrush(self.backgroundColor(background_color_idx, flags))
+                    foregroundColor, backgroundColor, font = self.mapToStyle(
+                        foreground_color_idx, 
+                        background_color_idx, 
+                        flags)
+                    pen = QtGui.QPen(foregroundColor)
+                    brush = QtGui.QBrush(backgroundColor)
+                    painter_setFont(font)
                     painter_setPen(pen)
 
             # Clear last column            

@@ -56,9 +56,9 @@ class TabbedTerminal(QtGui.QTabWidget):
         if self.backend:
             session = self.backend.session()
             term = TerminalWidget(session, parent = self)
-            scheme = ColorScheme.scheme("Tango Original")
-            if scheme:
-                term.setColorScheme(scheme)
+            #scheme = ColorScheme.scheme("Tango Original")
+            #if scheme:
+            #    term.setColorScheme(scheme)
             term.sessionClosed.connect(self._on_session_closed)
             self.addTab(term, "Terminal")
             self._terms.append(term)
