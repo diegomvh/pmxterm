@@ -338,12 +338,10 @@ class Terminal(object):
 
     def cursor_up(self, n = 1):
         self.cy = max(self.scroll_area_y0, self.cy - n)
-        self._scroll_area_up += n
 
 
     def cursor_down(self, n = 1):
         self.cy = min(self.scroll_area_y1 - 1, self.cy + n)
-        self._scroll_area_down += n
 
 
     def cursor_left(self, n = 1):

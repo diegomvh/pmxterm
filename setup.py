@@ -19,4 +19,5 @@ if __name__ == "__main__":
         license="GPL2",
         keywords="pyqt pyqt4 pyzmq console terminal shell vt100 widget",
         packages = find_packages(),
+        install_requires = [ 'pyzmq' ]
     )
