@@ -215,7 +215,7 @@ class Multiplexer(base.Multiplexer):
         self.proc_waitfordeath(sid)
         if sid in self.session:
             del self.session[sid]
-        self.queue.put([sid, constants.BURIED ])
+        self.queue.put([sid, str(constants.BURIED) ])
         return True
 
 

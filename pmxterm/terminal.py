@@ -191,7 +191,8 @@ class TerminalWidget(QtGui.QWidget):
 
     def resizeEvent(self, event):
         self._columns, self._rows = self._pixel2pos(self.width() - self.scrollBar.width(), self.height())
-        self.session.resize(self._columns, self._rows)
+        if self._columns > 0 and self._rows > 0:
+            self.session.resize(self._columns, self._rows)
         self.scrollBar.setGeometry(QtCore.QRect(self.width() - 16, 0, 16, self.height()))
 
 
