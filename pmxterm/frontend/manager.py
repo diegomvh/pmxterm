@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
+from __future__ import unicode_literals
 
 import os
 import sys
@@ -8,6 +9,9 @@ import time
 import json
 import ast
 import signal
+
+if sys.version_info.major < 3:
+    str = unicode
 
 from PyQt4 import QtCore
 

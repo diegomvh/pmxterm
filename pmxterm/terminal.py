@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
+from __future__ import unicode_literals
 
 # This code is based on AjaxTerm/Web-Shell which included a fairly complete
 # vt100 implementation as well as a stable process multiplexer.
@@ -9,6 +10,9 @@
 
 import sys
 import time
+
+if sys.version_info.major < 3:
+    str = unicode
 
 from PyQt4 import QtCore, QtGui
 
@@ -362,7 +366,7 @@ class TerminalWidget(QtGui.QWidget):
     return_pressed = QtCore.pyqtSignal()
 
     def keyPressEvent(self, event):
-        text = event.text()
+        text = str(event.text(), "utf-8")
         key = event.key()
         modifiers = event.modifiers()
         ctrl = modifiers == QtCore.Qt.ControlModifier
@@ -374,11 +378,11 @@ class TerminalWidget(QtGui.QWidget):
             if self.scrollBar.maximum() != self._history_index:
                 self.scrollBar.setValue(self.scrollBar.maximum())
             if text and key != QtCore.Qt.Key_Backspace:
-                self.send(text.encode("utf-8"))
+                self.send(text)
             else:
                 s = self.keymap.get(key)
                 if s:
-                    self.send(s.encode("utf-8"))
+                    self.send(s)
                 elif DEBUG:
                     print("Unkonwn key combination")
                     print("Modifiers: %s" % modifiers)
@@ -418,8 +422,8 @@ class TerminalWidget(QtGui.QWidget):
         elif button == QtCore.Qt.MiddleButton:
             self._press_pos = None
             self._selection = None
-            text = self._clipboard.text(QtGui.QClipboard.Selection)
-            self.send(text.encode("utf-8"))
+            text = str(self._clipboard.text(QtGui.QClipboard.Selection), "utf-8")
+            self.send(text)
             #self.update()
 
 
