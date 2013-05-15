@@ -73,7 +73,7 @@ class ZmqSocket(QtCore.QObject):
         elif flags & POLLOUT: 
             self.readyWrite.emit()
         elif flags & POLLERR: 
-            print "ZmqSocket.activity(): POLLERR"
+            print("ZmqSocket.activity(): POLLERR")
 
     def _recv(self, flags=NOBLOCK):
         try: _msg=self._socket.recv(flags=flags)

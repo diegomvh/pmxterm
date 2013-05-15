@@ -11,8 +11,8 @@ import signal
 
 from PyQt4 import QtCore
 
-from zeromqt import ZmqSocket
-from session import Session
+from .zeromqt import ZmqSocket
+from .session import Session
 
 LOCAL_BACKEND_SCRIPT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "backend", "main.py"))
 
@@ -35,7 +35,7 @@ class Backend(QtCore.QObject):
     def startNotifier(self, address):
         self.notifier = ZmqSocket(zmq.SUB, self)
         self.notifier.readyRead.connect(self.notifier_readyRead)
-        self.notifier.subscribe("") #All
+        self.notifier.subscribe(b"") #All
         self.notifier.connect(address)
         
     def execute(self, command, args = None):
@@ -54,7 +54,7 @@ class Backend(QtCore.QObject):
                     except:
                         self.sessions[sid].readyRead.emit()
         else:
-            print "algo esta mal con", data
+            print("algo esta mal con %s" % data)
         
             
     def start(self):
@@ -100,7 +100,7 @@ class LocalBackend(Backend):
         
     #------------ Process Start Signal
     def backend_start_readyReadStandardOutput(self):
-        connectionString = str(self.process.readAllStandardOutput()).decode("utf-8").splitlines()[-1]
+        connectionString = str(self.process.readAllStandardOutput(), "utf-8").splitlines()[-1]
         data = ast.literal_eval(connectionString)
         self.startMultiplexer(data["multiplexer"])
         self.startNotifier(data["notifier"])
@@ -113,7 +113,7 @@ class LocalBackend(Backend):
 
 
     def backend_start_readyReadStandardError(self):
-        print str(self.process.readAllStandardError()).decode("utf-8")
+        print(str(self.process.readAllStandardError(), "utf-8"))
         self.process.readyReadStandardError.disconnect(self.backend_start_readyReadStandardError)
         self.process.readyReadStandardOutput.disconnect(self.backend_start_readyReadStandardOutput)
         self.finished.emit(-1)
@@ -125,11 +125,11 @@ class LocalBackend(Backend):
 
 
     def backend_readyReadStandardError(self):
-        print str(self.process.readAllStandardError()).decode("utf-8")
+        print(str(self.process.readAllStandardError(), "utf-8"))
 
         
     def backend_readyReadStandardOutput(self):
-        print str(self.process.readAllStandardOutput()).decode("utf-8")
+        print(str(self.process.readAllStandardOutput(), "utf-8"))
         
     
     # -------------- set backend process attrs and settings

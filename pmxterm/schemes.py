@@ -3,11 +3,14 @@
 
 import os
 import glob
-from ConfigParser import ConfigParser
+try:
+    import configparser
+except ImportError:
+    import ConfigParser as configparser
 
 from PyQt4 import QtGui
 
-from colortrans import SHORT2RGB_DICT
+from .colortrans import SHORT2RGB_DICT
 
 
 class ColorScheme(object):
@@ -25,7 +28,7 @@ class ColorScheme(object):
     
     def __init__(self, name, settings = {}):
         self.name = name
-        self.colormap = dict(map(lambda (key, rgb): (key, QtGui.QColor(rgb)), settings.iteritems()))
+        self.colormap = dict(map(lambda item: (item[0], QtGui.QColor(item[1])), settings.items()))
 
 
     def mapIndex(self, index, intense):
@@ -81,7 +84,7 @@ class ColorScheme(object):
     @classmethod
     def loadSchemes(cls, schemesPath):
         for fileName in glob.glob(pathname=os.path.join(schemesPath, "*.colorscheme")):
-            config = ConfigParser()
+            config = configparser.RawConfigParser()
             config.read(fileName)
             general = dict(config.items("General"))
             scheme = ColorScheme(general["description"])

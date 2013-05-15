@@ -1,4 +1,4 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-from terminal import TerminalWidget
+from .terminal import TerminalWidget
