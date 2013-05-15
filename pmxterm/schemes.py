@@ -14,7 +14,7 @@ from .colortrans import SHORT2RGB_DICT
 
 
 class ColorScheme(object):
-    SCHEMES = {}
+    SCHEMES = []
     CONFIG_KEYS = [ 'Background', 'BackgroundIntense',
                     'Color0', 'Color0Intense',
                     'Color1', 'Color1Intense',
@@ -78,11 +78,15 @@ class ColorScheme(object):
 
     @classmethod
     def scheme(cls, name):
-        return cls.SCHEMES.get(name)
+        schemes = filter(lambda scheme: scheme.name == name, cls.SCHEMES)
+        if schemes:
+            return scheme.pop()
+        return cls.SCHEMES[0]
 
 
     @classmethod
     def loadSchemes(cls, schemesPath):
+        cls.SCHEMES.append(cls.default())
         for fileName in glob.glob(pathname=os.path.join(schemesPath, "*.colorscheme")):
             config = configparser.RawConfigParser()
             config.read(fileName)
@@ -91,8 +95,15 @@ class ColorScheme(object):
             for name in cls.CONFIG_KEYS:
                 index = -1
                 color = config.get(name, "Color")
-                rgb = "".join(map(lambda v: "%02x" % int(v), color.split(",")))
-                color = QtGui.QColor("#" + rgb)
+                if color.startswith("#"):
+                    color = QtGui.QColor(color)
+                elif color.index(",") != -1:
+                    rgb = "".join(map(lambda v: "%02x" % int(v), color.split(",")))
+                    color = QtGui.QColor("#" + rgb)
+                elif len(color) in [6, 8]:
+                    color = QtGui.QColor("#" + color)
+                else:
+                    color = QtGui.QColor()
                 intense = name.rfind("Intense")
                 if intense != -1:
                     name = name[:intense]
@@ -103,4 +114,4 @@ class ColorScheme(object):
                     setter(index, color, intense != -1)
                 else:
                     setter(color, intense != -1)
-            cls.SCHEMES[scheme.name] = scheme
+            cls.SCHEMES.append(scheme)

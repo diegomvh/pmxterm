@@ -6,7 +6,7 @@ import os
 from PyQt4 import QtGui, QtCore
 
 from pmxterm.terminal import TerminalWidget
-from pmxterm.frontend.manager import BackendManager
+from pmxterm.frontend.manager import Backend, BackendManager
 from pmxterm.schemes import ColorScheme
 
 ColorScheme.loadSchemes(os.path.abspath("schemes"))
@@ -34,7 +34,6 @@ class TabbedTerminal(QtGui.QTabWidget):
         # Local Backend
         self.backend = self.backendManager.localBackend()
         self.backend.started.connect(self.new_terminal)
-        self.backend.finished.connect(self.on_backend_finished)
         self.backend.start()
         
     def _on_close_request(self, idx):
@@ -46,19 +45,12 @@ class TabbedTerminal(QtGui.QTabWidget):
         term = self.widget(idx)
         self._update_title(term)
 
-
-    def on_backend_finished(self, status):
-        # TODO Meterle al backend y a la session un atributo para estado, si estan activos o no
-        self.backend = None
     
     def new_terminal(self):
         # Create session
-        if self.backend:
+        if self.backend.state() == Backend.Running:
             session = self.backend.session()
             term = TerminalWidget(session, parent = self)
-            #scheme = ColorScheme.scheme("Tango Original")
-            #if scheme:
-            #    term.setColorScheme(scheme)
             term.sessionClosed.connect(self._on_session_closed)
             self.addTab(term, "Terminal")
             self._terms.append(term)

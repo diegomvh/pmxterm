@@ -51,7 +51,7 @@ class TerminalWidget(QtGui.QWidget):
     sessionClosed = QtCore.pyqtSignal()
 
 
-    def __init__(self, session, parent=None):
+    def __init__(self, session, scheme = None, parent=None):
         QtGui.QWidget.__init__(self, parent)
         self.parent().setTabOrder(self, self)
         self.setFocusPolicy(QtCore.Qt.WheelFocus)
@@ -79,7 +79,7 @@ class TerminalWidget(QtGui.QWidget):
         self.scrollBar.valueChanged.connect(self.on_scrollBar_valueChanged)
         
         # Scheme
-        self.scheme = ColorScheme.default()
+        self.scheme = scheme or ColorScheme.default()
         
         self._last_update = None
         self._screen = []
@@ -191,7 +191,8 @@ class TerminalWidget(QtGui.QWidget):
 
     def resizeEvent(self, event):
         self._columns, self._rows = self._pixel2pos(self.width() - self.scrollBar.width(), self.height())
-        self.session.resize(self._columns, self._rows)
+        if self._columns > 0 and self._rows > 0:
+            self.session.resize(self._columns, self._rows)
         self.scrollBar.setGeometry(QtCore.QRect(self.width() - 16, 0, 16, self.height()))
 
 
