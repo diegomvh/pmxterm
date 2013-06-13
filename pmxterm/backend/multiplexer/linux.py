@@ -20,6 +20,8 @@ import constants
 from multiplexer import base
 from vt100 import Terminal
 
+FS_ENCODING = sys.getfilesystemencoding()
+
 def synchronized(func):
     def wrapper(self, *args, **kwargs):
         try:
@@ -221,7 +223,7 @@ class Multiplexer(base.Multiplexer):
 
     @synchronized
     def proc_buryall(self):
-        for sid in self.session.keys():
+        for sid in list(self.session.keys()):
             self.proc_bury(sid)
         self.queue.put(constants.BURIEDALL)
 
@@ -256,7 +258,6 @@ class Multiplexer(base.Multiplexer):
             except (IOError, OSError):
                 return False
         return True
-
 
     @synchronized
     def proc_write(self, sid, d):

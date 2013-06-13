@@ -31,20 +31,23 @@ class TabbedTerminal(QtGui.QTabWidget):
         self.backendManager = BackendManager(parent = self)
         QtGui.QApplication.instance().lastWindowClosed.connect(self.backendManager.closeAll)
         
-        # Local Backend
+    def run_local_backend(self):
         self.backend = self.backendManager.localBackend()
+        self.backend.started.connect(self.new_terminal)
+        self.backend.start()
+        
+    def run_remote_backend(self, address):
+        self.backend = self.backendManager.backend("remote", address)
         self.backend.started.connect(self.new_terminal)
         self.backend.start()
         
     def _on_close_request(self, idx):
         term = self.widget(idx)
         term.stop()
-        
-            
+
     def _on_current_changed(self, idx):
         term = self.widget(idx)
         self._update_title(term)
-
     
     def new_terminal(self):
         # Create session
@@ -57,11 +60,9 @@ class TabbedTerminal(QtGui.QTabWidget):
             self.setCurrentWidget(term)
             session.start()
             term.setFocus()
-
         
     def timerEvent(self, event):
         self._update_title(self.currentWidget())
-
 
     def _update_title(self, term):
         if term is None:
@@ -71,7 +72,6 @@ class TabbedTerminal(QtGui.QTabWidget):
         title = "Terminal"
         self.setTabText(idx, title)
         self.setWindowTitle(title)
-
     
     def _on_session_closed(self):
         term = self.sender()
@@ -86,11 +86,11 @@ class TabbedTerminal(QtGui.QTabWidget):
         if self.count() == 0:
             self.new_terminal()
 
-
-
 if __name__ == "__main__":
     app = QtGui.QApplication(sys.argv)
     win = TabbedTerminal()
+    print(sys.argv[1])
+    win.run_remote_backend(sys.argv[1])
     win.resize(800, 600)
     win.show()
     app.exec_()

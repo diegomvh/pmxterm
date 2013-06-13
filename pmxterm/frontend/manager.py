@@ -20,7 +20,6 @@ from .session import Session
 
 LOCAL_BACKEND_SCRIPT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "backend", "main.py"))
 
-
 class Backend(QtCore.QObject):
     # Errors of Backend
     FailedToStart = 0
@@ -72,7 +71,9 @@ class Backend(QtCore.QObject):
     def notifier_readyRead(self):
         message = self.notifier.recv_multipart()
         if len(message) % 2 == 0:
-            for sid, payload in [message[x: x + 2] for x in xrange(0, len(message), 2)]:
+            for sid, payload in [message[x: x + 2] for x in range(0, len(message), 2)]:
+                sid = sid.decode("utf-8")
+                payload = payload.decode("utf-8")
                 if sid in self.sessions:
                     try:
                         self.sessions[sid].screenReady.emit(ast.literal_eval(payload))
@@ -127,7 +128,7 @@ class LocalBackend(Backend):
         
     #------------ Process Start Signal
     def backend_start_readyReadStandardOutput(self):
-        connectionString = str(self.process.readAllStandardOutput(), "utf-8").splitlines()[-1]
+        connectionString = str(self.process.readAllStandardOutput(), "utf8").splitlines()[-1]
         data = ast.literal_eval(connectionString)
         self.startMultiplexer(data["multiplexer"])
         self.startNotifier(data["notifier"])
@@ -142,6 +143,7 @@ class LocalBackend(Backend):
 
 
     def backend_start_readyReadStandardError(self):
+        print(str(self.process.readAllStandardError()))
         self.process.readyReadStandardError.disconnect(self.backend_start_readyReadStandardError)
         self.process.readyReadStandardOutput.disconnect(self.backend_start_readyReadStandardOutput)
         self.error.emit(self.ReadError)

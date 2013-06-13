@@ -13,7 +13,10 @@ import time
 
 if sys.version_info.major < 3:
     str = unicode
-
+    text_type = ( str, unicode )
+else:
+    text_type = str
+    
 from PyQt4 import QtCore, QtGui
 
 from .backend import constants
@@ -168,20 +171,16 @@ class TerminalWidget(QtGui.QWidget):
     def stop(self):
         self.session.stop()
 
-
     def pid(self):
         return self.session.pid()
-
 
     def info(self):
         if self.is_alive():
             return self.session.info()
 
-
     def setFont(self, font):
         QtGui.QWidget.setFont(self, font)
         self._update_metrics()
-
         
     def focusNextPrevChild(self, next):
         if not self.is_alive():
@@ -288,7 +287,7 @@ class TerminalWidget(QtGui.QWidget):
             col = 0
             text_line = ""
             for item in line:
-                if isinstance(item, basestring):
+                if isinstance(item, text_type):
                     x = col * char_width
                     length = len(item)
                     rect = QtCore.QRect(x, y, x + char_width * length, y + char_height)
@@ -366,7 +365,7 @@ class TerminalWidget(QtGui.QWidget):
     return_pressed = QtCore.pyqtSignal()
 
     def keyPressEvent(self, event):
-        text = str(event.text(), "utf-8")
+        text = str(event.text())
         key = event.key()
         modifiers = event.modifiers()
         ctrl = modifiers == QtCore.Qt.ControlModifier

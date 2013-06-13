@@ -8,8 +8,12 @@
 # http://vim.wikia.com/wiki/Xterm256_color_names_for_console_Vim
 # http://shallowsky.com/blog/2011/Jan/18/
 
+import sys
 import array
 import constants
+
+if sys.version_info.major == 3:
+    unichr = chr
 
 class Terminal(object):
     CHARACTERS = 0
@@ -259,7 +263,6 @@ class Terminal(object):
                     o += '?'
         return o
 
-
     def utf8_charwidth(self, char):
         if char >= 0x2e80:
             return 2
@@ -270,12 +273,10 @@ class Terminal(object):
     def peek(self, y0, x0, y1, x1):
         return self.screen[self.CHARACTERS][self.w * y0 + x0:self.w * (y1 - 1) + x1], self.screen[self.ATTRIBUTES][self.w * y0 + x0:self.w * (y1 - 1) + x1]
 
-
     def poke(self, y, x, c, a):
         pos = self.w * y + x
         self.screen[self.CHARACTERS][pos:pos + len(c)] = c
         self.screen[self.ATTRIBUTES][pos:pos + len(a)] = a
-
 
     def fill(self, y0, x0, y1, x1, char, attr):
         n = self.w * (y1 - y0 - 1) + (x1 - x0)
@@ -1125,7 +1126,8 @@ class Terminal(object):
 
 
     def write(self, d):
-        d = self.utf8_decode(d)
+        d = d.decode(constants.FS_ENCODING)
+        #d = self.utf8_decode(d.decode(constants.FS_ENCODING))
         for c in d:
             char = ord(c)
             if self.vt100_write(char):
@@ -1161,7 +1163,7 @@ class Terminal(object):
                 o += c
                 if self.vt100_mode_lfnewline and char == 13:
                     o += chr(10)
-        return o
+        return o.encode(constants.FS_ENCODING)
 
 
     def dump(self):
