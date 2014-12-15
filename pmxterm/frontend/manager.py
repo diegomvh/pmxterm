@@ -43,6 +43,8 @@ class Backend(QtCore.QObject):
         self.name = name
         self.sessions = {}
         self._state = self.NotRunning
+        self.multiplexer = None
+        self.notifier = None
 
     def _set_state(self, state):
         self._state = state
@@ -87,7 +89,7 @@ class Backend(QtCore.QObject):
         self._set_state(self.Running)
         self.started.emit()
         
-    def close(self):
+    def stop(self):
         self.execute("proc_buryall")
         self._set_state(self.NotRunning)
         self.finished.emit(0)
@@ -119,16 +121,15 @@ class LocalBackend(Backend):
         self.process.readyReadStandardOutput.connect(self.backend_start_readyReadStandardOutput)
         self.process.start(sys.executable, args)
 
-
-    def close(self):
-        Backend.close(self)
+    def stop(self):
+        Backend.stop(self)
         os.kill(self.process.pid(), signal.SIGTERM)
         self.process.waitForFinished()
 
         
     #------------ Process Start Signal
     def backend_start_readyReadStandardOutput(self):
-        connectionString = str(self.process.readAllStandardOutput(), "utf8").splitlines()[-1]
+        connectionString = encoding.from_fs(self.process.readAllStandardOutput()).splitlines()[-1]
         data = ast.literal_eval(connectionString)
         self.startMultiplexer(data["multiplexer"])
         self.startNotifier(data["notifier"])
@@ -143,7 +144,7 @@ class LocalBackend(Backend):
 
 
     def backend_start_readyReadStandardError(self):
-        print(str(self.process.readAllStandardError()))
+        print(encoding.from_fs(self.process.readAllStandardError()))
         self.process.readyReadStandardError.disconnect(self.backend_start_readyReadStandardError)
         self.process.readyReadStandardOutput.disconnect(self.backend_start_readyReadStandardOutput)
         self.error.emit(self.ReadError)
@@ -159,12 +160,10 @@ class LocalBackend(Backend):
         self.error.emit(error)
 
     def backend_readyReadStandardError(self):
-        print(str(self.process.readAllStandardError(), "utf-8"))
-
-        
+        print(encoding.from_fs(self.process.readAllStandardError()))
+    
     def backend_readyReadStandardOutput(self):
-        print(str(self.process.readAllStandardOutput(), "utf-8"))
-        
+        print(encoding.from_fs(self.process.readAllStandardOutput()))
     
     # -------------- set backend process attrs and settings
     def setWorkingDirectory(self, directory):
@@ -184,9 +183,10 @@ class BackendManager(QtCore.QObject):
         QtCore.QObject.__init__(self, parent)
         self.backends = []
     
-    def closeAll(self):
+    def stopAll(self):
         for backend in self.backends:
-            backend.close()
+            if backend.state() == Backend.Running:
+                backend.stop()
     
     def backend(self, name, connectionString):
         data = ast.literal_eval(connectionString)

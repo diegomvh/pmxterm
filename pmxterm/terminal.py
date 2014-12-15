@@ -287,15 +287,7 @@ class TerminalWidget(QtGui.QWidget):
             col = 0
             text_line = ""
             for item in line:
-                if isinstance(item, text_type):
-                    x = col * char_width
-                    length = len(item)
-                    rect = QtCore.QRect(x, y, x + char_width * length, y + char_height)
-                    painter_fillRect(rect, brush)
-                    painter_drawText(rect, align, item)
-                    col += length
-                    text_line += item
-                else:
+                if isinstance(item, tuple):
                     foreground_color_idx, background_color_idx, flags = item
                     foregroundColor, backgroundColor, font = self.mapToStyle(
                         foreground_color_idx, 
@@ -305,7 +297,14 @@ class TerminalWidget(QtGui.QWidget):
                     brush = QtGui.QBrush(backgroundColor)
                     painter_setFont(font)
                     painter_setPen(pen)
-
+                else:
+                    x = col * char_width
+                    length = len(item)
+                    rect = QtCore.QRect(x, y, x + char_width * length, y + char_height)
+                    painter_fillRect(rect, brush)
+                    painter_drawText(rect, align, item)
+                    col += length
+                    text_line += item
             # Clear last column            
             rect = QtCore.QRect(col * char_width, y, self.width(), y + char_height)
             brush = QtGui.QBrush(self.backgroundColor())
@@ -365,7 +364,7 @@ class TerminalWidget(QtGui.QWidget):
     return_pressed = QtCore.pyqtSignal()
 
     def keyPressEvent(self, event):
-        text = str(event.text())
+        text = event.text()
         key = event.key()
         modifiers = event.modifiers()
         ctrl = modifiers == QtCore.Qt.ControlModifier
@@ -400,13 +399,13 @@ class TerminalWidget(QtGui.QWidget):
 
     def wheelEvent(self, event):
         if event.modifiers() == QtCore.Qt.ControlModifier:
-            if event.delta() == 120:
+            if delta > 0:
                 self.zoom_in()
-            elif event.delta() == -120:
+            elif delta < 0:
                 self.zoom_out()
-            event.accept()
+            event.ignore()
         else:
-            QtGui.QWidget.wheelEvent(self, event)
+            super(TerminalWidget, self).wheelEvent(event)
     
     def mousePressEvent(self, event):
         button = event.button()
@@ -421,8 +420,8 @@ class TerminalWidget(QtGui.QWidget):
         elif button == QtCore.Qt.MiddleButton:
             self._press_pos = None
             self._selection = None
-            text = str(self._clipboard.text(QtGui.QClipboard.Selection), "utf-8")
-            self.send(text)
+            text = str(self._clipboard.text(QtGui.QClipboard.Selection))
+            self.send(text.encode("utf-8"))
             #self.update()
 
 

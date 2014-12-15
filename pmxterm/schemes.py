@@ -28,7 +28,7 @@ class ColorScheme(object):
     
     def __init__(self, name, settings = {}):
         self.name = name
-        self.colormap = dict(map(lambda item: (item[0], QtGui.QColor(item[1])), settings.items()))
+        self.colormap = dict([(key_rgb[0], QtGui.QColor(key_rgb[1])) for key_rgb in iter(settings.items())])
 
 
     def mapIndex(self, index, intense):
@@ -78,9 +78,9 @@ class ColorScheme(object):
 
     @classmethod
     def scheme(cls, name):
-        schemes = filter(lambda scheme: scheme.name == name, cls.SCHEMES)
+        schemes = [scheme for scheme in cls.SCHEMES if scheme.name == name]
         if schemes:
-            return scheme.pop()
+            return schemes.pop()
         return cls.SCHEMES[0]
 
 
@@ -98,7 +98,7 @@ class ColorScheme(object):
                 if color.startswith("#"):
                     color = QtGui.QColor(color)
                 elif color.index(",") != -1:
-                    rgb = "".join(map(lambda v: "%02x" % int(v), color.split(",")))
+                    rgb = "".join(["%02x" % int(v) for v in color.split(",")])
                     color = QtGui.QColor("#" + rgb)
                 elif len(color) in [6, 8]:
                     color = QtGui.QColor("#" + color)
