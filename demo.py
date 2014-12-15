@@ -3,7 +3,11 @@
 import sys
 import os
 
-from PyQt4 import QtGui, QtCore
+try:
+    from PyQt5 import QtGui, QtCore, QtWidgets
+except:
+    from PyQt4 import QtGui, QtCore
+    QtWidgets = QtGui
 
 from pmxterm.terminal import TerminalWidget
 from pmxterm.frontend.manager import Backend, BackendManager
@@ -11,13 +15,11 @@ from pmxterm.schemes import ColorScheme
 
 ColorScheme.loadSchemes(os.path.abspath("schemes"))
 
-class TabbedTerminal(QtGui.QTabWidget):
-
-    
+class TabbedTerminal(QtWidgets.QTabWidget):
     def __init__(self, parent=None):
         super(TabbedTerminal, self).__init__(parent)
-        self.setTabPosition(QtGui.QTabWidget.South)
-        self._new_button = QtGui.QPushButton(self)
+        self.setTabPosition(QtWidgets.QTabWidget.South)
+        self._new_button = QtWidgets.QPushButton(self)
         self._new_button.setText("New")
         self._new_button.clicked.connect(self.new_terminal)
         self.setCornerWidget(self._new_button)
@@ -29,7 +31,7 @@ class TabbedTerminal(QtGui.QTabWidget):
         self.currentChanged[int].connect(self._on_current_changed)
         # Manager
         self.backendManager = BackendManager(parent = self)
-        QtGui.QApplication.instance().lastWindowClosed.connect(self.backendManager.closeAll)
+        QtWidgets.QApplication.instance().lastWindowClosed.connect(self.backendManager.stopAll)
         
     def run_local_backend(self):
         self.backend = self.backendManager.localBackend()
@@ -87,10 +89,10 @@ class TabbedTerminal(QtGui.QTabWidget):
             self.new_terminal()
 
 if __name__ == "__main__":
-    app = QtGui.QApplication(sys.argv)
+    app = QtWidgets.QApplication(sys.argv)
     win = TabbedTerminal()
-    print(sys.argv[1])
-    win.run_remote_backend(sys.argv[1])
+    win.run_local_backend()
+    #win.run_remote_backend(sys.argv[1])
     win.resize(800, 600)
     win.show()
     app.exec_()

@@ -3,14 +3,16 @@
 
 import os
 import sys
-import zmq
 import argparse
 import stat
 import signal
 import tempfile
 import constants
+import socket
+import json
 
 from multiprocessing import Process, Queue
+from multiprocessing.reduction import recv_handle, send_handle
 from multiplexer import Multiplexer
 
 procs = set()
@@ -19,48 +21,28 @@ shutdown = False
 # ===========
 # = Workers =
 # ===========
-def worker_multiplexer(queue_multiplexer, queue_notifier, addr):
+def worker_multiplexer(queue_multiplexer, queue_notifier, sock):
     global shutdown
     multiplexer = Multiplexer(queue_notifier)
-        
-    context = zmq.Context()
-    zrep = context.socket(zmq.REP)
-    
-    if addr[1]:
-        port = zrep.bind_to_random_port(addr[0])
-        queue_multiplexer.put("%s:%d" % (addr[0], port))
-    else:
-        zrep.bind(addr[0])
-        queue_multiplexer.put(addr[0])
     
     should_continue = True
     while not shutdown and should_continue:
-        pycmd = zrep.recv_pyobj()
+        pycmd = json.loads(sock.recv())
         method = getattr(multiplexer, pycmd["command"], None)
-        if method is not None:
-            zrep.send_pyobj(method(*pycmd["args"]))
-        else:
-            zrep.send_pyobj(None)
+        sock.send(json.dumps(
+            method is not None and
+            method(*pycmd["args"]) or None 
+        ).encode("utf-8"))
         should_continue = pycmd["command"] != "proc_buryall"
 
-
-def worker_notifier(queue_notifier, addr):
+def worker_notifier(queue_notifier):
     global shutdown
-    context = zmq.Context()
-    zpub = context.socket(zmq.PUB)
-    
-    if addr[1]:
-        port = zpub.bind_to_random_port(addr[0])
-        queue_notifier.put("%s:%d" % (addr[0], port))
-    else:
-        zpub.bind(addr[0])
-        queue_notifier.put(addr[0])
-        
+
     should_continue = True
     while not shutdown and should_continue:
         data = queue_notifier.get()
         if isinstance(data, (tuple, list)):
-            zpub.send_multipart([ s.encode(constants.FS_ENCODING) for s in data ])
+            sock.send([ s.encode(constants.FS_ENCODING) for s in data ])
         elif isinstance(data, int) and data == constants.BURIEDALL:
             should_continue = False
 
@@ -113,44 +95,51 @@ def get_addresses(args):
         return (rep_addr, rep_port), (pub_addr, pub_port)
     return None, None
 
+# Install singla handler
+def signal_handler(signum, frame):
+    global shutdown
+    shutdown = True
+    for proc in procs:
+        proc.terminate()
+        proc.join()
+
+signal.signal(signal.SIGINT, signal_handler)
+signal.signal(signal.SIGTERM, signal_handler)
+if sys.platform == "win32":
+    signal.signal(signal.SIGBREAK, signal_handler)
+
 if __name__ == "__main__":
-    rep_addr, pub_addr = get_addresses(parse_arguments())
+    #rep_addr, pub_addr = get_addresses(parse_arguments())
 
-    if not rep_addr or not pub_addr:
-        print("Address error, please read help")
-        sys.exit(-1)
+    #if not rep_addr or not pub_addr:
+    #    print("Address error, please read help")
+    #    sys.exit(-1)
 
-    queue_multiplexer = Queue()
-    queue_notifier = Queue()
-    
-    # Start the notifier
-    nproc = Process(target=worker_notifier, args=(queue_notifier, pub_addr))
-    nproc.start()
-    procs.add(nproc)
-    
-    naddress = queue_notifier.get()    
-    
-    # Start the multiplexer
-    mproc = Process(target=worker_multiplexer, args=(queue_multiplexer, queue_notifier, rep_addr))
-    mproc.start()
-    procs.add(nproc)
-    
-    maddress = queue_multiplexer.get()
-        
-    info = { "multiplexer": maddress, "notifier": naddress }
-    
-    print("To connect another client to this backend, use:")
-    print(info)
+    address = tempfile.mktemp(prefix="pmx")
+    server = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+    server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, True)
+    server.bind(address)
+    server.listen(5)
+
+    print("To connect a client to this backend, use:")
+    print(address)
     sys.stdout.flush()
+
+    while not shutdown:
+        conn, address = server.accept()
+        queue_multiplexer = Queue()
+        queue_notifier = Queue()
+
+        # Start the notifier
+        nproc = Process(target=worker_notifier, 
+            args=(queue_notifier, ), name="notifier"
+        )
+        nproc.start()
+        procs.add(nproc)
     
-    def signal_handler(signum, frame):
-        global shutdown
-        shutdown = True
-        for proc in procs:
-            proc.terminate()
-            proc.join()
-    
-    signal.signal(signal.SIGINT, signal_handler)
-    signal.signal(signal.SIGTERM, signal_handler)
-    if sys.platform == "win32":
-        signal.signal(signal.SIGBREAK, signal_handler)
+        # Start the multiplexer
+        mproc = Process(target=worker_multiplexer,
+            args=(queue_multiplexer, queue_notifier, conn), name="multiplexer"
+        )
+        mproc.start()
+        procs.add(nproc)

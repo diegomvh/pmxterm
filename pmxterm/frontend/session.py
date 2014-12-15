@@ -3,13 +3,15 @@
 
 import os
 import sys
-import zmq
 import time
 import json
 import ast
 import signal
 
-from PyQt4 import QtCore
+try:
+    from PyQt5 import QtCore
+except:
+    from PyQt4 import QtCore
 
 class Session(QtCore.QObject):
     readyRead = QtCore.pyqtSignal()
@@ -53,25 +55,20 @@ class Session(QtCore.QObject):
 
     def is_alive(self):
         return self.backend.execute("is_session_alive", [self._session_id])
-
         
     def keepalive(self):
         return self.backend.execute("proc_keepalive", [self._session_id, self._width, self._height])
-
 
     def dump(self):
         if self.keepalive():
             return self.backend.execute("proc_dump", [self._session_id])
 
-
     def write(self, data):
         if self.keepalive():
             return self.backend.execute("proc_write", [self._session_id, data])
 
-
     def last_change(self):
         return self.backend.execute("last_session_change", [self._session_id])
-        
     
     def pid(self):
         if self._pid is None:

@@ -8,7 +8,11 @@ try:
 except ImportError:
     import ConfigParser as configparser
 
-from PyQt4 import QtGui
+try:
+    from PyQt5 import QtGui, QtWidgets
+except:
+    from PyQt4 import QtGui
+    QtWidgets = QtGui
 
 from .colortrans import SHORT2RGB_DICT
 

@@ -100,12 +100,13 @@ class Multiplexer(base.Multiplexer):
         self.thread = threading.Thread(target = self.proc_thread)
         self.thread.start()
 
+    def setup_channel(self, address):
+        return address
 
     def stop(self):
         # Stop supervisor thread
         self.signal_stop = 1
         self.thread.join()
-
 
     def proc_resize(self, sid, w, h):
         fd = self.session[sid]['fd']
@@ -128,9 +129,9 @@ class Multiplexer(base.Multiplexer):
         if not sid in self.session:
             # Start a new session
             self.session[sid] = {
-                'state':'unborn',
-                'term':	Terminal(w, h),
-                'time':	time.time(),
+                'state': 'unborn',
+                'term': Terminal(w, h),
+                'time': time.time(),
                 'w':	w,
                 'h':	h}
             return self.proc_spawn(sid, cmd)

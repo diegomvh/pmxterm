@@ -16,8 +16,12 @@ if sys.version_info.major < 3:
     text_type = ( str, unicode )
 else:
     text_type = str
-    
-from PyQt4 import QtCore, QtGui
+
+try:
+    from PyQt5 import QtGui, QtCore, QtWidgets
+except:
+    from PyQt4 import QtGui, QtCore
+    QtWidgets = QtGui
 
 from .backend import constants
 from .schemes import ColorScheme
@@ -25,7 +29,7 @@ from .schemes import ColorScheme
 DEBUG = False
 
 
-class TerminalWidget(QtGui.QWidget):
+class TerminalWidget(QtWidgets.QWidget):
     keymap = {
        QtCore.Qt.Key_Backspace: chr(127),
        QtCore.Qt.Key_Escape: chr(27),
@@ -59,7 +63,7 @@ class TerminalWidget(QtGui.QWidget):
 
 
     def __init__(self, session, scheme = None, parent=None):
-        QtGui.QWidget.__init__(self, parent)
+        QtWidgets.QWidget.__init__(self, parent)
         self.parent().setTabOrder(self, self)
         self.setFocusPolicy(QtCore.Qt.WheelFocus)
         self.setAutoFillBackground(False)
@@ -78,7 +82,7 @@ class TerminalWidget(QtGui.QWidget):
         self.session.finished.connect(self.on_session_finished)
         
         # Scroll
-        self.scrollBar = QtGui.QScrollBar(self)
+        self.scrollBar = QtWidgets.QScrollBar(self)
         self.scrollBar.setCursor( QtCore.Qt.ArrowCursor )
         self.scrollBar.setMinimum(0)
         self.scrollBar.setMaximum(0)
@@ -99,8 +103,7 @@ class TerminalWidget(QtGui.QWidget):
         self._cursor_row = 0
         self._press_pos = None
         self._selection = None
-        self._clipboard = QtGui.QApplication.clipboard()
-
+        self._clipboard = QtWidgets.QApplication.clipboard()
 
     # ---------------- Signals
     def on_session_finished(self, status):
@@ -179,7 +182,7 @@ class TerminalWidget(QtGui.QWidget):
             return self.session.info()
 
     def setFont(self, font):
-        QtGui.QWidget.setFont(self, font)
+        QtWidgets.QWidget.setFont(self, font)
         self._update_metrics()
         
     def focusNextPrevChild(self, next):
@@ -217,7 +220,6 @@ class TerminalWidget(QtGui.QWidget):
         self.scrollBar.setMaximum(self._history_index)
         self.scrollBar.setValue(self._history_index)
 
-
     def _update_metrics(self):
         fm = self.fontMetrics()
         self._char_height = fm.height()
@@ -227,14 +229,12 @@ class TerminalWidget(QtGui.QWidget):
         cx, cy = self._pos2pixel(self._cursor_col, self._cursor_row)
         self._cursor_rect = QtCore.QRect(cx, cy, self._char_width, self._char_height)
 
-        
     def _reset(self):
         self._update_metrics()
         self._update_cursor_rect()
         self.resizeEvent(None)
         self.update()
 
-        
     def paintEvent(self, event):
         painter = QtGui.QPainter(self)
         self._paint_screen(painter)
