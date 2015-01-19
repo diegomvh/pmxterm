@@ -17,32 +17,54 @@ from multiplexer import Multiplexer
 
 procs = set()
 shutdown = False
+channels = {}
 
 # ===========
 # = Workers =
 # ===========
-def worker_multiplexer(queue_multiplexer, queue_notifier, sock):
+def worker_multiplexer(queue_multiplexer, queue_notifier):
     global shutdown
-    multiplexer = Multiplexer(queue_notifier)
     
+    multiplexer = Multiplexer(queue_notifier)    
     should_continue = True
     while not shutdown and should_continue:
-        pycmd = json.loads(sock.recv())
+        pycmd = queue_multiplexer.get()
         method = getattr(multiplexer, pycmd["command"], None)
-        sock.send(json.dumps(
-            method is not None and
-            method(*pycmd["args"]) or None 
-        ).encode("utf-8"))
+        if method:
+            queue_multiplexer.put(method(*pycmd["args"]))
+        should_continue = pycmd["command"] != "proc_buryall"
+        
+def worker_client(queue_multiplexer, sock):
+    global shutdown
+    global channels
+
+    _id = sock.fileno()
+    should_continue = True
+    while not shutdown and should_continue:
+        data = sock.recv(4096)
+        pycmd = json.loads(data.decode(constants.FS_ENCODING))
+        if pycmd["command"] == "setup_channel":
+            channels[_id] = socket.socket(socket.AF_UNIX)
+            channels[_id].connect(pycmd["args"])
+            result = True
+        else:
+            pycmd["args"].insert(0, _id)
+            queue_multiplexer.put(pycmd)
+            result = queue_multiplexer.get()
+        sock.send(json.dumps(result).encode(constants.FS_ENCODING))
         should_continue = pycmd["command"] != "proc_buryall"
 
 def worker_notifier(queue_notifier):
     global shutdown
-
+    global channels
+    
     should_continue = True
     while not shutdown and should_continue:
         data = queue_notifier.get()
+        print(channels)
         if isinstance(data, (tuple, list)):
-            sock.send([ s.encode(constants.FS_ENCODING) for s in data ])
+            channel = channels[data[0]]
+            channel.send(json.dumps(data[1]).encode(constants.FS_ENCODING))
         elif isinstance(data, int) and data == constants.BURIEDALL:
             should_continue = False
 
@@ -116,7 +138,7 @@ if __name__ == "__main__":
     #    sys.exit(-1)
 
     address = tempfile.mktemp(prefix="pmx")
-    server = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+    server = socket.socket(socket.AF_UNIX)
     server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, True)
     server.bind(address)
     server.listen(5)
@@ -124,22 +146,31 @@ if __name__ == "__main__":
     print("To connect a client to this backend, use:")
     print(address)
     sys.stdout.flush()
+    
+    queue_multiplexer = Queue()
+    queue_notifier = Queue()
+    
+    # Start the multiplexer
+    mproc = Process(target=worker_multiplexer,
+        args=(queue_multiplexer, queue_notifier), name="multiplexer"
+    )
+    mproc.start()
+    procs.add(mproc)
 
+    # Start the notifier
+    nproc = Process(target=worker_notifier,
+        args=(queue_notifier, ), name="notifier"
+    )
+    nproc.start()
+    procs.add(nproc)
     while not shutdown:
         conn, address = server.accept()
-        queue_multiplexer = Queue()
-        queue_notifier = Queue()
 
         # Start the notifier
-        nproc = Process(target=worker_notifier, 
-            args=(queue_notifier, ), name="notifier"
+        cproc = Process(target=worker_client, 
+            args=(queue_multiplexer, conn), name="client"
         )
-        nproc.start()
-        procs.add(nproc)
-    
-        # Start the multiplexer
-        mproc = Process(target=worker_multiplexer,
-            args=(queue_multiplexer, queue_notifier, conn), name="multiplexer"
-        )
-        mproc.start()
-        procs.add(nproc)
+        cproc.start()
+        procs.add(cproc)
+        
+        conn.close()

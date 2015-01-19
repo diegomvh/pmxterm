@@ -76,18 +76,17 @@ class Backend(QtCore.QObject):
     def execute(self, command, args = None):
         if args is None:
             args = []
-        print(json.dumps({"command": command, "args": args}))
-        self.multiplexer.send(json.dumps({"command": command, "args": args}))
-        data = self.multiplexer.recv()
-        print(data)
-        return json.loads(data.decode("utf-8"))
+        data = {"command": command, "args": args}
+        print("--->", data)
+        self.multiplexer.send(json.dumps(data).encode(encoding.FS_ENCODING))
+        self.multiplexer.recv(1)
 
     def notifier_readyRead(self):
-        message = self.sock.recv()
+        message = self.sock.recv(0)
         if len(message) % 2 == 0:
             for sid, payload in [message[x: x + 2] for x in range(0, len(message), 2)]:
-                sid = sid.decode("utf-8")
-                payload = payload.decode("utf-8")
+                sid = sid.decode(encoding.FS_ENCODING)
+                payload = payload.decode(encoding.FS_ENCODING)
                 if sid in self.sessions:
                     try:
                         self.sessions[sid].screenReady.emit(ast.literal_eval(payload))
@@ -191,11 +190,10 @@ class BackendManager(QtCore.QObject):
             if backend.state() == Backend.Running:
                 backend.stop()
     
-    def backend(self, name, connectionString):
-        data = ast.literal_eval(connectionString)
+    def backend(self, name, address):
         backend = Backend(name, parent = self)
-        backend.startMultiplexer(data["multiplexer"])
-        backend.startNotifier(data["notifier"])
+        backend.startMultiplexer(address)
+        backend.execute("setup_channel", backend.startNotifier())
         self.backends.append(backend)
         return backend
         

@@ -97,11 +97,8 @@ class Multiplexer(base.Multiplexer):
 
         # Supervisor thread
         self.signal_stop = 0
-        self.thread = threading.Thread(target = self.proc_thread)
+        self.thread = threading.Thread(target=self.proc_thread)
         self.thread.start()
-
-    def setup_channel(self, address):
-        return address
 
     def stop(self):
         # Stop supervisor thread
@@ -125,18 +122,20 @@ class Multiplexer(base.Multiplexer):
 
 
     @synchronized
-    def proc_keepalive(self, sid, w, h, cmd=None):
+    def proc_keepalive(self, client, sid, w, h, cmd=None):
         if not sid in self.session:
             # Start a new session
             self.session[sid] = {
                 'state': 'unborn',
                 'term': Terminal(w, h),
+                'clients': set([ client ]),
                 'time': time.time(),
                 'w':	w,
                 'h':	h}
             return self.proc_spawn(sid, cmd)
         elif self.session[sid]['state'] == 'alive':
             self.session[sid]['time'] = time.time()
+            self.session[sid]['clients'].add(client)
             # Update terminal size
             if self.session[sid]['w'] != w or self.session[sid]['h'] != h:
                 self.proc_resize(sid, w, h)
@@ -218,7 +217,8 @@ class Multiplexer(base.Multiplexer):
         self.proc_waitfordeath(sid)
         if sid in self.session:
             del self.session[sid]
-        self.queue.put([sid, str(constants.BURIED) ])
+        for client in self.session[sid]['clients']: 
+            self.queue.put((client, { 'sid': sid, 'state': 'dead' }))
         return True
 
 
@@ -323,7 +323,8 @@ class Multiplexer(base.Multiplexer):
                 sid = fd2sid[fd]
                 if self.proc_read(sid) and sid in self.session:
                     self.session[sid]["changed"] = time.time()
-                    self.queue.put([ sid, str(self.proc_dump(sid)) ])
+                    for client in self.session[sid]['clients']: 
+                        self.queue.put((client, { 'sid': sid, 'state': 'alive', 'data': self.proc_dump(sid) }))
             #if len(i):
             #    time.sleep(0.002)
         self.proc_buryall()
