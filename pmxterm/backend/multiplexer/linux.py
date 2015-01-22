@@ -15,7 +15,6 @@ import signal
 import struct
 import select
 import subprocess
-import constants
 
 from multiplexer import base
 from vt100 import Terminal
@@ -36,7 +35,6 @@ def synchronized(func):
         return result
     return wrapper
 
-
 class ProcessInfo(object):
     def update(self):
         processes = [int(entry) for entry in os.listdir("/proc") if entry.isdigit()]
@@ -56,13 +54,11 @@ class ProcessInfo(object):
         self.children = children
         self.commands = commands
 
-
     def all_children(self, pid):
         cl = self.children.get(pid, [])[:]
         for child_pid in cl:
             cl.extend(self.children.get(child_pid, []))
         return cl
-    
 
     def cwd(self, pid):
         try:
@@ -80,7 +76,6 @@ class ProcessInfo(object):
                 if child_pid:
                     info.update(self.info(child_pid))
         return info
-            
 
 class Multiplexer(base.Multiplexer):
     def __init__(self, queue, cmd=os.environ["SHELL"], env_term = "xterm-color", timeout=60*60*24):
@@ -120,7 +115,6 @@ class Multiplexer(base.Multiplexer):
         self.session[sid]['w'] = w
         self.session[sid]['h'] = h
 
-
     @synchronized
     def proc_keepalive(self, client, sid, w, h, cmd=None):
         if not sid in self.session:
@@ -142,7 +136,6 @@ class Multiplexer(base.Multiplexer):
             return True
         else:
             return False
-
 
     def proc_spawn(self, sid, cmd=None):
         # Session
@@ -188,7 +181,6 @@ class Multiplexer(base.Multiplexer):
             self.proc_resize(sid, w, h)
             return True
 
-
     def proc_waitfordeath(self, sid):
         try:
             os.close(self.session[sid]['fd'])
@@ -207,27 +199,28 @@ class Multiplexer(base.Multiplexer):
         self.session[sid]['state'] = 'dead'
         return True
 
-
-    def proc_bury(self, sid):
+    def proc_bury(self, client, sid):
         if self.session[sid]['state'] == 'alive':
             try:
                 os.kill(self.session[sid]['pid'], signal.SIGTERM)
+                for c in self.session[sid]['clients']:
+                    self.queue.put({ 
+                        'cmd': 'send',
+                        'channel': c,
+                        'payload': {'sid': sid, 'state': 'dead' } 
+                    })
             except (IOError, OSError):
                 pass
         self.proc_waitfordeath(sid)
         if sid in self.session:
             del self.session[sid]
-        for client in self.session[sid]['clients']: 
-            self.queue.put((client, { 'sid': sid, 'state': 'dead' }))
         return True
 
-
     @synchronized
-    def proc_buryall(self):
+    def proc_buryall(self, client):
         for sid in list(self.session.keys()):
-            self.proc_bury(sid)
-        self.queue.put(constants.BURIEDALL)
-
+            self.proc_bury(client, sid)
+        self.queue.put({ 'cmd': 'buried_all', 'channel': client })
 
     @synchronized
     def proc_read(self, sid):
@@ -261,7 +254,7 @@ class Multiplexer(base.Multiplexer):
         return True
 
     @synchronized
-    def proc_write(self, sid, d):
+    def proc_write(self, client, sid, d):
         """
         Write to process
         """
@@ -278,16 +271,14 @@ class Multiplexer(base.Multiplexer):
             return False
         return True
 
-
     @synchronized
-    def proc_dump(self, sid):
+    def proc_dump(self, client, sid):
         """
         Dump terminal output
         """
         if sid not in self.session:
             return False
         return self.session[sid]['term'].dump()
-
 
     @synchronized
     def proc_getalive(self):
@@ -324,21 +315,21 @@ class Multiplexer(base.Multiplexer):
                 if self.proc_read(sid) and sid in self.session:
                     self.session[sid]["changed"] = time.time()
                     for client in self.session[sid]['clients']: 
-                        self.queue.put((client, { 'sid': sid, 'state': 'alive', 'data': self.proc_dump(sid) }))
+                        self.queue.put( { 'cmd': 'send', 'channel': client, 'payload': { 'sid': sid, 'state': 'alive', 'screen': self.proc_dump(client, sid) }})
             #if len(i):
             #    time.sleep(0.002)
         self.proc_buryall()
 
-    def is_session_alive(self, sid):
+    def is_session_alive(self, client, sid):
         return self.session.get(sid, {}).get('state') == 'alive'
     
-    def last_session_change(self, sid):
+    def last_session_change(self, client, sid):
         return self.session.get(sid, {}).get("changed", None)
 
-    def session_pid(self, sid):
+    def session_pid(self, client, sid):
         return self.session.get(sid, {}).get("pid", None)
 
-    def session_info(self, sid):
+    def session_info(self, client, sid):
         pid = self.session_pid(sid)
         self.processInfo.update()
         return self.processInfo.info(pid)

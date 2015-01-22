@@ -15,7 +15,7 @@ except:
 
 class Session(QtCore.QObject):
     readyRead = QtCore.pyqtSignal()
-    screenReady = QtCore.pyqtSignal(tuple)
+    screenReady = QtCore.pyqtSignal(list)
     finished = QtCore.pyqtSignal(int)
     
     def __init__(self, backend, width=80, height=24):

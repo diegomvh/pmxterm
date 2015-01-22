@@ -15,9 +15,9 @@ if sys.version_info.major < 3:
     str = unicode
 
 try:
-    from PyQt5 import QtCore
+    from PyQt5 import QtCore, QtNetwork
 except:
-    from PyQt4 import QtCore
+    from PyQt4 import QtCore, QtNetwork
 
 from .session import Session
 from ..utils import encoding
@@ -60,13 +60,9 @@ class Backend(QtCore.QObject):
     #------------ Sockets
     def startNotifier(self):
         address = tempfile.mktemp(prefix="pmx")
-        self.sock = socket.socket(socket.AF_UNIX)
-        self.sock.bind(address)
-        self.sock.listen(5)
-        self.notifier = QtCore.QSocketNotifier(self.sock.fileno(),
-            QtCore.QSocketNotifier.Read
-        )
-        self.notifier.activated.connect(self.notifier_readyRead)
+        self.notifier = QtNetwork.QLocalServer(self)
+        self.notifier.listen(address)
+        self.notifier.newConnection.connect(self.on_notifier_newConnection)
         return address
 
     def startMultiplexer(self, address):
@@ -77,23 +73,28 @@ class Backend(QtCore.QObject):
         if args is None:
             args = []
         data = {"command": command, "args": args}
-        print("--->", data)
         self.multiplexer.send(json.dumps(data).encode(encoding.FS_ENCODING))
-        self.multiplexer.recv(1)
+        result = self.multiplexer.recv(4096)
+        return json.loads(result.decode(encoding.FS_ENCODING))
 
-    def notifier_readyRead(self):
-        message = self.sock.recv(0)
-        if len(message) % 2 == 0:
-            for sid, payload in [message[x: x + 2] for x in range(0, len(message), 2)]:
-                sid = sid.decode(encoding.FS_ENCODING)
-                payload = payload.decode(encoding.FS_ENCODING)
-                if sid in self.sessions:
-                    try:
-                        self.sessions[sid].screenReady.emit(ast.literal_eval(payload))
-                    except:
-                        self.sessions[sid].readyRead.emit()
+    def on_notifier_newConnection(self):
+        connection = self.notifier.nextPendingConnection()
+        connection.readyRead.connect(lambda con = connection: self.socketReadyRead(con))
+        
+    def socketReadyRead(self, connection):
+        message = json.loads(encoding.from_fs(connection.readAll().data()))
+        if message:
+            sid = message['sid']
+            screen = message['screen']
+            if sid in self.sessions:
+                try:
+                    self.sessions[sid].screenReady.emit(screen)
+                except:
+                    self.sessions[sid].readyRead.emit()
         else:
             raise Exception("Session data error")
+        result = encoding.to_fs('true')
+        connection.write(result)
 
     def start(self):
         self._set_state(self.Running)
@@ -113,7 +114,6 @@ class Backend(QtCore.QObject):
         return session
 
 class LocalBackend(Backend):
-    
     def __init__(self, parent = None):
         Backend.__init__(self, 'local', parent)
         self.process = QtCore.QProcess(self)

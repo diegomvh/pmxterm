@@ -17,7 +17,6 @@ from multiplexer import Multiplexer
 
 procs = set()
 shutdown = False
-channels = {}
 
 # ===========
 # = Workers =
@@ -34,18 +33,37 @@ def worker_multiplexer(queue_multiplexer, queue_notifier):
             queue_multiplexer.put(method(*pycmd["args"]))
         should_continue = pycmd["command"] != "proc_buryall"
         
-def worker_client(queue_multiplexer, sock):
+def worker_notifier(queue_notifier):
     global shutdown
-    global channels
+    
+    channels = {}
+    should_continue = True
+    while not shutdown and should_continue:
+        message = queue_notifier.get()
+        if message['cmd'] == 'send':
+            channel = channels[message['channel']]
+            channel.send(json.dumps(message['payload']).encode(constants.FS_ENCODING))
+            channel.recv(4096)
+        elif message['cmd'] == 'buried_all':
+            for channel in channels.values():
+                channel.close()
+            should_continue = False
+        elif message['cmd'] == 'setup_channel':
+            s = socket.socket(socket.AF_UNIX)
+            s.connect(message['address'])
+            channels[message['id']] = s
+            
+def worker_client(queue_multiplexer, queue_notifier, sock):
+    global shutdown
 
     _id = sock.fileno()
     should_continue = True
     while not shutdown and should_continue:
         data = sock.recv(4096)
+        print(data)
         pycmd = json.loads(data.decode(constants.FS_ENCODING))
         if pycmd["command"] == "setup_channel":
-            channels[_id] = socket.socket(socket.AF_UNIX)
-            channels[_id].connect(pycmd["args"])
+            queue_notifier.put({'cmd': 'setup_channel', 'id': _id, 'address': pycmd["args"]})
             result = True
         else:
             pycmd["args"].insert(0, _id)
@@ -53,20 +71,6 @@ def worker_client(queue_multiplexer, sock):
             result = queue_multiplexer.get()
         sock.send(json.dumps(result).encode(constants.FS_ENCODING))
         should_continue = pycmd["command"] != "proc_buryall"
-
-def worker_notifier(queue_notifier):
-    global shutdown
-    global channels
-    
-    should_continue = True
-    while not shutdown and should_continue:
-        data = queue_notifier.get()
-        print(channels)
-        if isinstance(data, (tuple, list)):
-            channel = channels[data[0]]
-            channel.send(json.dumps(data[1]).encode(constants.FS_ENCODING))
-        elif isinstance(data, int) and data == constants.BURIEDALL:
-            should_continue = False
 
 # ==============
 # = Parse args =
@@ -168,7 +172,7 @@ if __name__ == "__main__":
 
         # Start the notifier
         cproc = Process(target=worker_client, 
-            args=(queue_multiplexer, conn), name="client"
+            args=(queue_multiplexer, queue_notifier, conn), name="client"
         )
         cproc.start()
         procs.add(cproc)

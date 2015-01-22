@@ -110,13 +110,11 @@ class TerminalWidget(QtWidgets.QWidget):
         self.session = None
         self.sessionClosed.emit()
 
-
     def on_session_readyRead(self):
         if not self.is_alive():
             self.sessionClosed.emit()
         else:
             self.on_session_screenReady(self.session.dump())
-
 
     def on_session_screenReady(self, data):
         (self._cursor_col, self._cursor_row, scroll_up, scroll_down), screen = data
@@ -125,7 +123,6 @@ class TerminalWidget(QtWidgets.QWidget):
         self._screen = screen
         self._update_cursor_rect()
         self.update()
-        
         
     def on_scrollBar_valueChanged(self, value):
         self._history_index = value
@@ -287,7 +284,7 @@ class TerminalWidget(QtWidgets.QWidget):
             col = 0
             text_line = ""
             for item in line:
-                if isinstance(item, tuple):
+                if isinstance(item, list):
                     foreground_color_idx, background_color_idx, flags = item
                     foregroundColor, backgroundColor, font = self.mapToStyle(
                         foreground_color_idx, 

@@ -85,8 +85,8 @@ class TabbedTerminal(QtWidgets.QTabWidget):
         widget = self.currentWidget()
         if widget:
             widget.setFocus()
-        if self.count() == 0:
-            self.new_terminal()
+        #if self.count() == 0:
+        #    self.new_terminal()
 
 if __name__ == "__main__":
     app = QtWidgets.QApplication(sys.argv)
