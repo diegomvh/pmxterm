@@ -32,6 +32,16 @@ class Session(QtCore.QObject):
         self._started = False
         self._pid = None
         
+    def message(self, message):
+        state = message['state']
+        if state == 'alive':
+            self.screenReady.emit(message['screen'])
+        elif state == 'dead':
+            self.finished.emit(0)
+        else:
+            self.readyRead.emit()
+        return True
+        
     def sid(self):
         return self._session_id
 

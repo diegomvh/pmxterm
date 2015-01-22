@@ -196,18 +196,21 @@ class Multiplexer(base.Multiplexer):
         if sid in self.session:
             if 'pid' in self.session[sid]:
                 del self.session[sid]['pid']
-        self.session[sid]['state'] = 'dead'
+        if sid in self.session:
+            self.session[sid]['state'] = 'dead'
         return True
 
     def proc_bury(self, client, sid):
         if self.session[sid]['state'] == 'alive':
             try:
                 os.kill(self.session[sid]['pid'], signal.SIGTERM)
-                for c in self.session[sid]['clients']:
+                for _client in self.session[sid]['clients']:
                     self.queue.put({ 
                         'cmd': 'send',
-                        'channel': c,
-                        'payload': {'sid': sid, 'state': 'dead' } 
+                        'channel': _client,
+                        'payload': {
+                            'sid': sid, 
+                            'state': 'dead'} 
                     })
             except (IOError, OSError):
                 pass
@@ -238,7 +241,7 @@ class Multiplexer(base.Multiplexer):
                 # Process finished, BSD
                 self.proc_waitfordeath(sid)
                 return False
-        except (IOError, OSError):
+        except (KeyError, IOError, OSError):
             # Process finished, Linux
             self.proc_waitfordeath(sid)
             return False
@@ -291,13 +294,13 @@ class Multiplexer(base.Multiplexer):
         for sid in self.session.keys():
             then = self.session[sid]['time']
             if (now - then) > self.timeout:
-                self.proc_bury(sid)
+                for client in self.session[sid]['clients']:
+                    self.proc_bury(client, sid)
             else:
                 if self.session[sid]['state'] == 'alive':
                     fds.append(self.session[sid]['fd'])
                     fd2sid[self.session[sid]['fd']] = sid
         return (fds, fd2sid)
-
 
     def proc_thread(self):
         """
@@ -315,7 +318,15 @@ class Multiplexer(base.Multiplexer):
                 if self.proc_read(sid) and sid in self.session:
                     self.session[sid]["changed"] = time.time()
                     for client in self.session[sid]['clients']: 
-                        self.queue.put( { 'cmd': 'send', 'channel': client, 'payload': { 'sid': sid, 'state': 'alive', 'screen': self.proc_dump(client, sid) }})
+                        self.queue.put({
+                            'cmd': 'send',
+                            'channel': client,
+                            'payload': { 
+                                'sid': sid, 
+                                'state': 'alive', 
+                                'screen': self.proc_dump(client, sid) 
+                            }
+                        })
             #if len(i):
             #    time.sleep(0.002)
         self.proc_buryall()

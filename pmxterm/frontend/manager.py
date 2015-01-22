@@ -83,18 +83,12 @@ class Backend(QtCore.QObject):
         
     def socketReadyRead(self, connection):
         message = json.loads(encoding.from_fs(connection.readAll().data()))
-        if message:
-            sid = message['sid']
-            screen = message['screen']
-            if sid in self.sessions:
-                try:
-                    self.sessions[sid].screenReady.emit(screen)
-                except:
-                    self.sessions[sid].readyRead.emit()
+        sid = message['sid']
+        if sid in self.sessions:
+            result = self.sessions[sid].message(message)
         else:
-            raise Exception("Session data error")
-        result = encoding.to_fs('true')
-        connection.write(result)
+            result = False
+        connection.write(json.dumps(result).encode(encoding.FS_ENCODING))
 
     def start(self):
         self._set_state(self.Running)

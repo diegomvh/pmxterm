@@ -56,7 +56,7 @@ class TabbedTerminal(QtWidgets.QTabWidget):
         if self.backend.state() == Backend.Running:
             session = self.backend.session()
             term = TerminalWidget(session, parent = self)
-            term.sessionClosed.connect(self._on_session_closed)
+            term.sessionClosed.connect(self.on_session_closed)
             self.addTab(term, "Terminal")
             self._terms.append(term)
             self.setCurrentWidget(term)
@@ -75,7 +75,7 @@ class TabbedTerminal(QtWidgets.QTabWidget):
         self.setTabText(idx, title)
         self.setWindowTitle(title)
     
-    def _on_session_closed(self):
+    def on_session_closed(self):
         term = self.sender()
         try:
             self._terms.remove(term)
@@ -85,8 +85,8 @@ class TabbedTerminal(QtWidgets.QTabWidget):
         widget = self.currentWidget()
         if widget:
             widget.setFocus()
-        #if self.count() == 0:
-        #    self.new_terminal()
+        if self.count() == 0:
+            self.new_terminal()
 
 if __name__ == "__main__":
     app = QtWidgets.QApplication(sys.argv)

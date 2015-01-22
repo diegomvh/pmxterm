@@ -134,22 +134,19 @@ class TerminalWidget(QtWidgets.QWidget):
         self.scheme = scheme
         self.update()
 
-
     def backgroundColor(self, index = None, attrs = constants.DEFAULTSGR):
         if index is None:
             return self.scheme.background()
         if attrs & constants.SGR49:
             return self.scheme.background()
         return self.scheme.color(index)
-        
-        
+         
     def foregroundColor(self, index = None, attrs = constants.DEFAULTSGR):
         if index is None:
              return self.scheme.foreground()
         if attrs & constants.SGR39:
             return self.scheme.foreground(intense = bool(attrs & constants.SGR1))
         return self.scheme.color(index, intense = bool(attrs & constants.SGR1))
-
 
     def mapToStyle(self, foregroundIndex, backgroundIndex, attrs = constants.DEFAULTSGR):
         foregroundColor = self.foregroundColor(foregroundIndex, attrs)
@@ -163,10 +160,8 @@ class TerminalWidget(QtWidgets.QWidget):
             font.setBold(True)
         return (foregroundColor, backgroundColor, font)
 
-
     def send(self, s):
         self.session.write(s)
-
 
     def stop(self):
         self.session.stop()
@@ -187,10 +182,8 @@ class TerminalWidget(QtWidgets.QWidget):
             return True
         return False
 
-
     def focusInEvent(self, event):
         self.update()
-
 
     def resizeEvent(self, event):
         self._columns, self._rows = self._pixel2pos(self.width() - self.scrollBar.width(), self.height())
@@ -198,12 +191,10 @@ class TerminalWidget(QtWidgets.QWidget):
             self.session.resize(self._columns, self._rows)
         self.scrollBar.setGeometry(QtCore.QRect(self.width() - 16, 0, 16, self.height()))
 
-
     def closeEvent(self, event):
         if not self.is_alive():
             return
         self.session.close()
-
 
     def store_history(self, lines, screen):
         self._screen_history.extend(screen[:lines])

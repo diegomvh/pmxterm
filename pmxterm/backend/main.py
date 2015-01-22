@@ -24,21 +24,18 @@ shutdown = False
 def worker_multiplexer(queue_multiplexer, queue_notifier):
     global shutdown
     
-    multiplexer = Multiplexer(queue_notifier)    
-    should_continue = True
-    while not shutdown and should_continue:
+    multiplexer = Multiplexer(queue_notifier)
+    while not shutdown:
         pycmd = queue_multiplexer.get()
         method = getattr(multiplexer, pycmd["command"], None)
         if method:
             queue_multiplexer.put(method(*pycmd["args"]))
-        should_continue = pycmd["command"] != "proc_buryall"
         
 def worker_notifier(queue_notifier):
     global shutdown
     
     channels = {}
-    should_continue = True
-    while not shutdown and should_continue:
+    while not shutdown:
         message = queue_notifier.get()
         if message['cmd'] == 'send':
             channel = channels[message['channel']]
@@ -47,7 +44,6 @@ def worker_notifier(queue_notifier):
         elif message['cmd'] == 'buried_all':
             for channel in channels.values():
                 channel.close()
-            should_continue = False
         elif message['cmd'] == 'setup_channel':
             s = socket.socket(socket.AF_UNIX)
             s.connect(message['address'])
@@ -57,10 +53,10 @@ def worker_client(queue_multiplexer, queue_notifier, sock):
     global shutdown
 
     _id = sock.fileno()
-    should_continue = True
-    while not shutdown and should_continue:
+    while not shutdown:
         data = sock.recv(4096)
-        print(data)
+        if not data:
+            break
         pycmd = json.loads(data.decode(constants.FS_ENCODING))
         if pycmd["command"] == "setup_channel":
             queue_notifier.put({'cmd': 'setup_channel', 'id': _id, 'address': pycmd["args"]})
@@ -70,7 +66,6 @@ def worker_client(queue_multiplexer, queue_notifier, sock):
             queue_multiplexer.put(pycmd)
             result = queue_multiplexer.get()
         sock.send(json.dumps(result).encode(constants.FS_ENCODING))
-        should_continue = pycmd["command"] != "proc_buryall"
 
 # ==============
 # = Parse args =
