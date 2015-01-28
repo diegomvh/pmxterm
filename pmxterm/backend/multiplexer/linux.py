@@ -100,6 +100,9 @@ class Multiplexer(base.Multiplexer):
         self.signal_stop = 1
         self.thread.join()
 
+    def setup_channel(self, client, address):
+        self.queue.put({'cmd': 'setup_channel', 'id': client, 'address': address})
+
     def proc_resize(self, sid, w, h):
         fd = self.session[sid]['fd']
         # Set terminal size
@@ -133,9 +136,6 @@ class Multiplexer(base.Multiplexer):
             # Update terminal size
             if self.session[sid]['w'] != w or self.session[sid]['h'] != h:
                 self.proc_resize(sid, w, h)
-            return True
-        else:
-            return False
 
     def proc_spawn(self, sid, cmd=None):
         # Session
@@ -146,7 +146,6 @@ class Multiplexer(base.Multiplexer):
             pid, fd = pty.fork()
         except (IOError, OSError):
             self.session[sid]['state'] = 'dead'
-            return False
         if pid == 0:
             cmd = cmd or self.cmd
             # Safe way to make it work under BSD and Linux
@@ -179,7 +178,6 @@ class Multiplexer(base.Multiplexer):
             fcntl.fcntl(fd, fcntl.F_SETFL, os.O_NONBLOCK)
             # Set terminal size
             self.proc_resize(sid, w, h)
-            return True
 
     def proc_waitfordeath(self, sid):
         try:
@@ -198,7 +196,6 @@ class Multiplexer(base.Multiplexer):
                 del self.session[sid]['pid']
         if sid in self.session:
             self.session[sid]['state'] = 'dead'
-        return True
 
     def proc_bury(self, client, sid):
         if self.session[sid]['state'] == 'alive':
@@ -217,7 +214,6 @@ class Multiplexer(base.Multiplexer):
         self.proc_waitfordeath(sid)
         if sid in self.session:
             del self.session[sid]
-        return True
 
     @synchronized
     def proc_buryall(self, client):
@@ -230,58 +226,47 @@ class Multiplexer(base.Multiplexer):
         """
         Read from process
         """
-        if sid not in self.session:
-            return False
-        elif self.session[sid]['state'] != 'alive':
-            return False
-        try:
-            fd = self.session[sid]['fd']
-            d = os.read(fd, 65536)
-            if not d:
-                # Process finished, BSD
-                self.proc_waitfordeath(sid)
-                return False
-        except (KeyError, IOError, OSError):
-            # Process finished, Linux
-            self.proc_waitfordeath(sid)
-            return False
-        term = self.session[sid]['term']
-        term.write(d)
-        # Read terminal response
-        d = term.read()
-        if d:
+        if sid in self.session and self.session[sid]['state'] != 'alive':
             try:
-                os.write(fd, d)
-            except (IOError, OSError):
-                return False
-        return True
+                fd = self.session[sid]['fd']
+                d = os.read(fd, 65536)
+                if not d:
+                    # Process finished, BSD
+                    self.proc_waitfordeath(sid)
+            except (KeyError, IOError, OSError):
+                # Process finished, Linux
+                self.proc_waitfordeath(sid)
+            term = self.session[sid]['term']
+            term.write(d)
+            # Read terminal response
+            d = term.read()
+            if d:
+                try:
+                    os.write(fd, d)
+                except (IOError, OSError):
+                    pass
 
     @synchronized
     def proc_write(self, client, sid, d):
         """
         Write to process
         """
-        if sid not in self.session:
-            return False
-        elif self.session[sid]['state'] != 'alive':
-            return False
-        try:
-            term = self.session[sid]['term']
-            d = term.pipe(d)
-            fd = self.session[sid]['fd']
-            os.write(fd, d)
-        except (IOError, OSError):
-            return False
-        return True
+        if sid in self.session and self.session[sid]['state'] != 'alive':
+            try:
+                term = self.session[sid]['term']
+                d = term.pipe(d)
+                fd = self.session[sid]['fd']
+                os.write(fd, d)
+            except (IOError, OSError):
+                pass
 
     @synchronized
     def proc_dump(self, client, sid):
         """
         Dump terminal output
         """
-        if sid not in self.session:
-            return False
-        return self.session[sid]['term'].dump()
+        if sid in self.session:
+            return self.session[sid]['term'].dump()
 
     @synchronized
     def proc_getalive(self):
@@ -315,7 +300,8 @@ class Multiplexer(base.Multiplexer):
                 i = []
             for fd in i:
                 sid = fd2sid[fd]
-                if self.proc_read(sid) and sid in self.session:
+                if sid in self.session:
+                    self.proc_read(sid) 
                     self.session[sid]["changed"] = time.time()
                     for client in self.session[sid]['clients']: 
                         self.queue.put({
