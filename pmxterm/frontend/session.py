@@ -68,7 +68,7 @@ class Session(QtCore.QObject):
         self.backend.execute("is_session_alive", [self._session_id])
 
     def keepalive(self):
-        self.backend.execute("proc_keepalive", [self._session_id, self._width, self._height])
+        #self.backend.execute("proc_keepalive", [self._session_id, self._width, self._height])
         return True
 
     def dump(self):

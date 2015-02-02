@@ -322,8 +322,6 @@ class Multiplexer(base.Multiplexer):
                                 'screen': self.proc_dump(client, sid) 
                             }
                         })
-            #if len(i):
-            #    time.sleep(0.002)
         self.proc_buryall()
 
     def is_session_alive(self, client, sid):
