@@ -55,35 +55,37 @@ class Session(QtCore.QObject):
         args = [self._session_id, self._width, self._height]
         if largs:
             args.extend(largs)
-        self._started = self.backend.execute("proc_keepalive", args)
+        self.backend.execute("proc_keepalive", args)
+        self._started = True
         return self._started
 
     def close(self):
-        return self.backend.execute("proc_bury", [self._session_id])
+        self.backend.execute("proc_bury", [self._session_id])
     
     stop = close
 
     def is_alive(self):
-        return self.backend.execute("is_session_alive", [self._session_id])
-        
+        self.backend.execute("is_session_alive", [self._session_id])
+
     def keepalive(self):
-        return self.backend.execute("proc_keepalive", [self._session_id, self._width, self._height])
+        self.backend.execute("proc_keepalive", [self._session_id, self._width, self._height])
+        return True
 
     def dump(self):
         if self.keepalive():
-            return self.backend.execute("proc_dump", [self._session_id])
+            self.backend.execute("proc_dump", [self._session_id])
 
     def write(self, data):
         if self.keepalive():
-            return self.backend.execute("proc_write", [self._session_id, data])
+            self.backend.execute("proc_write", [self._session_id, data])
 
     def last_change(self):
-        return self.backend.execute("last_session_change", [self._session_id])
+        self.backend.execute("last_session_change", [self._session_id])
     
     def pid(self):
         if self._pid is None:
             self._pid = self.backend.execute("session_pid", [self._session_id])
-        return self._pid
+        self._pid
         
     def info(self):
-        return self.backend.execute("session_info", [self._session_id])
+        self.backend.execute("session_info", [self._session_id])

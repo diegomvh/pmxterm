@@ -16,6 +16,8 @@ from multiprocessing import Process, Queue
 from multiprocessing.reduction import recv_handle, send_handle
 from multiplexer import Multiplexer
 
+queue_multiplexer = Queue()
+queue_notifier = Queue()
 procs = set()
 shutdown = False
 
@@ -30,10 +32,7 @@ def worker_multiplexer(queue_multiplexer, queue_notifier):
 
     multiplexer = Multiplexer(queue_notifier)
     while not shutdown:
-        try:
-            pycmd = queue_multiplexer.get(block=False)
-        except queue.Empty:
-            continue
+        pycmd = queue_multiplexer.get()
         getattr(multiplexer, pycmd["command"], debug)(*pycmd["args"])
 
 def worker_notifier(queue_notifier):
@@ -41,14 +40,11 @@ def worker_notifier(queue_notifier):
     
     channels = {}
     while not shutdown:
-        try:
-            message = queue_notifier.get(block=False)
-        except queue.Empty:
-            continue
+        message = queue_notifier.get()
         if message['cmd'] == 'send':
             channel = channels[message['channel']]
-            channel.send(json.dumps(message['payload']).encode(constants.FS_ENCODING))
-            channel.recv(4096)
+            data = json.dumps(message['payload']).encode(constants.FS_ENCODING)
+            channel.send(data)
         elif message['cmd'] == 'buried_all':
             for channel in channels.values():
                 channel.close()
@@ -63,12 +59,10 @@ def worker_client(queue_multiplexer, queue_notifier, sock):
     _id = sock.fileno()
     while not shutdown:
         data = sock.recv(4096)
-        if not data:
-            break
+        print(data)
         pycmd = json.loads(data.decode(constants.FS_ENCODING))
         pycmd["args"].insert(0, _id)
         queue_multiplexer.put(pycmd)
-        sock.send(json.dumps(True).encode(constants.FS_ENCODING))
 
 def get_addresses(args):
     pub_addr = rep_addr = None
@@ -83,6 +77,8 @@ def get_addresses(args):
 def signal_handler(signum, frame):
     global shutdown
     shutdown = True
+    queue_multiplexer.close()
+    queue_notifier.close()
     for proc in procs:
         proc.terminate()
 
@@ -122,9 +118,6 @@ if __name__ == "__main__":
     print("To connect a client to this backend, use:")
     print(json.dumps({'address': server.getsockname()}))
     sys.stdout.flush()
-    
-    queue_multiplexer = Queue()
-    queue_notifier = Queue()
     
     # Start the multiplexer
     mproc = Process(target=worker_multiplexer,

@@ -226,39 +226,49 @@ class Multiplexer(base.Multiplexer):
         """
         Read from process
         """
-        if sid in self.session and self.session[sid]['state'] != 'alive':
-            try:
-                fd = self.session[sid]['fd']
-                d = os.read(fd, 65536)
-                if not d:
-                    # Process finished, BSD
-                    self.proc_waitfordeath(sid)
-            except (KeyError, IOError, OSError):
-                # Process finished, Linux
+        if sid not in self.session:
+            return False
+        elif self.session[sid]['state'] != 'alive':
+            return False
+        try:
+            fd = self.session[sid]['fd']
+            d = os.read(fd, 65536)
+            if not d:
+                # Process finished, BSD
                 self.proc_waitfordeath(sid)
-            term = self.session[sid]['term']
-            term.write(d)
-            # Read terminal response
-            d = term.read()
-            if d:
-                try:
-                    os.write(fd, d)
-                except (IOError, OSError):
-                    pass
+                return False
+        except (KeyError, IOError, OSError):
+            # Process finished, Linux
+            self.proc_waitfordeath(sid)
+            return False
+        term = self.session[sid]['term']
+        term.write(d)
+        # Read terminal response
+        d = term.read()
+        if d:
+            try:
+                os.write(fd, d)
+            except (IOError, OSError):
+                return False
+        return True
 
     @synchronized
     def proc_write(self, client, sid, d):
         """
         Write to process
         """
-        if sid in self.session and self.session[sid]['state'] != 'alive':
-            try:
-                term = self.session[sid]['term']
-                d = term.pipe(d)
-                fd = self.session[sid]['fd']
-                os.write(fd, d)
-            except (IOError, OSError):
-                pass
+        if sid not in self.session:
+            return False
+        elif self.session[sid]['state'] != 'alive':
+            return False
+        try:
+            term = self.session[sid]['term']
+            d = term.pipe(d)
+            fd = self.session[sid]['fd']
+            os.write(fd, d)
+        except (IOError, OSError):
+            return False
+        return True
 
     @synchronized
     def proc_dump(self, client, sid):
@@ -300,8 +310,7 @@ class Multiplexer(base.Multiplexer):
                 i = []
             for fd in i:
                 sid = fd2sid[fd]
-                if sid in self.session:
-                    self.proc_read(sid) 
+                if self.proc_read(sid) and sid in self.session:
                     self.session[sid]["changed"] = time.time()
                     for client in self.session[sid]['clients']: 
                         self.queue.put({

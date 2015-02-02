@@ -347,7 +347,6 @@ class TerminalWidget(QtWidgets.QWidget):
         font.setPointSize(size)
         self.setFont(font)
         self._reset()
-        
 
     return_pressed = QtCore.pyqtSignal()
 

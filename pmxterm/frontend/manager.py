@@ -8,7 +8,6 @@ import time
 import json
 import ast
 import signal
-import socket
 import tempfile
 import functools
 
@@ -43,7 +42,7 @@ class Backend(QtCore.QObject):
     finished = QtCore.pyqtSignal(int)
     stateChanged = QtCore.pyqtSignal(int)
     
-    def __init__(self, name, parent = None):
+    def __init__(self, name, parent=None):
         QtCore.QObject.__init__(self, parent)
         self.name = name
         self.sessions = {}
@@ -86,31 +85,34 @@ class Backend(QtCore.QObject):
         return address
 
     def startMultiplexer(self, address):
-        self.multiplexer = socket.socket(self.protocol() == 'unix' and socket.AF_UNIX or socket.AF_INET)
-        self.multiplexer.connect(address)
-
+        if self.protocol() == 'unix':
+            self.multiplexer = QtNetwork.QLocalSocket(self)
+            self.multiplexer.connectToServer(address, QtCore.QIODevice.WriteOnly)
+        else:
+            self.multiplexer = QtNetwork.QTcpSocket(self)
+            self.multiplexer.connectToServer(address, QtCore.QIODevice.WriteOnly)
+        
     def execute(self, command, args=None):
         if not isinstance(args, (tuple, list)):
             args = [ args ]
         data = {"command": command, "args": args}
-        self.multiplexer.send(json.dumps(data).encode(encoding.FS_ENCODING))
-        result = self.multiplexer.recv(4096)
-        return json.loads(result.decode(encoding.FS_ENCODING))
+        self.multiplexer.write(json.dumps(data).encode(encoding.FS_ENCODING))
+        self.multiplexer.flush()
 
     def on_notifier_newConnection(self):
         connection = self.notifier.nextPendingConnection()
         connection.readyRead.connect(functools.partial(self.socketReadyRead, connection))
         
     def socketReadyRead(self, connection):
-        message = json.loads(encoding.from_fs(connection.readAll().data()))
+        data = encoding.from_fs(connection.readAll().data())
+        message = json.loads(data)
         sid = message['sid']
         if sid in self.sessions:
-            result = self.sessions[sid].message(message)
-        else:
-            result = False
-        connection.write(json.dumps(result).encode(encoding.FS_ENCODING))
-
+            self.sessions[sid].message(message)
+        
     def start(self):
+        self.startMultiplexer(self.address())
+        self.execute("setup_channel", self.startNotifier())
         self._set_state(self.Running)
         self.started.emit()
         
@@ -151,16 +153,14 @@ class LocalBackend(Backend):
     def backend_start_readyReadStandardOutput(self):
         connection = encoding.from_fs(self.process.readAllStandardOutput()).splitlines()[1]
         connection = json.loads(connection)
-        self.startMultiplexer(connection['address'])
-        self.execute("setup_channel", self.startNotifier())
+        self.setAddress(connection['address'])
         self.process.readyReadStandardError.disconnect(self.backend_start_readyReadStandardError)
         self.process.readyReadStandardOutput.disconnect(self.backend_start_readyReadStandardOutput)
         self.process.readyReadStandardError.connect(self.backend_readyReadStandardError)
         self.process.readyReadStandardOutput.connect(self.backend_readyReadStandardOutput)
         self.process.finished.connect(self.backend_finished)
         self.process.error.connect(self.backend_error)
-        self._set_state(self.Running)
-        self.started.emit()
+        self.start()
 
     def backend_start_readyReadStandardError(self):
         print(encoding.from_fs(self.process.readAllStandardError()))
@@ -196,10 +196,9 @@ class BackendManager(QtCore.QObject):
             if backend.state() == Backend.Running:
                 backend.stop()
     
-    def backend(self, name, address):
-        backend = Backend(name, parent = self)
-        backend.startMultiplexer(address)
-        backend.execute("setup_channel", backend.startNotifier())
+    def backend(self, address):
+        backend = Backend(address, parent=self)
+        backend.setAddress(address)
         self.backends.append(backend)
         return backend
         

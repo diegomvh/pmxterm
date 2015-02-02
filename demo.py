@@ -39,7 +39,7 @@ class TabbedTerminal(QtWidgets.QTabWidget):
         self.backend.start()
         
     def run_remote_backend(self, address):
-        self.backend = self.backendManager.backend("remote", address)
+        self.backend = self.backendManager.backend(address)
         self.backend.started.connect(self.new_terminal)
         self.backend.start()
         
@@ -91,7 +91,7 @@ class TabbedTerminal(QtWidgets.QTabWidget):
 if __name__ == "__main__":
     app = QtWidgets.QApplication(sys.argv)
     win = TabbedTerminal()
-    # win.run_local_backend()
+    #win.run_local_backend()
     win.run_remote_backend(sys.argv[1])
     win.resize(800, 600)
     win.show()
