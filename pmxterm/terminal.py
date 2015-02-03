@@ -324,7 +324,6 @@ class TerminalWidget(QtWidgets.QWidget):
             #painter.drawRect(rect)
             painter.fillRect(rect, brush)
 
-
     FONT_MAX_SIZE = 32
     FONT_MIN_SIZE = 6
     def zoom_in(self):
@@ -337,7 +336,6 @@ class TerminalWidget(QtWidgets.QWidget):
         self.setFont(font)
         self._reset()
 
-        
     def zoom_out(self):
         font = self.font()
         size = font.pointSize()
@@ -383,7 +381,6 @@ class TerminalWidget(QtWidgets.QWidget):
         if key in (QtCore.Qt.Key_Enter, QtCore.Qt.Key_Return):
             self.return_pressed.emit()
 
-
     def wheelEvent(self, event):
         if event.modifiers() == QtCore.Qt.ControlModifier:
             if delta > 0:
@@ -411,10 +408,8 @@ class TerminalWidget(QtWidgets.QWidget):
             self.send(text.encode("utf-8"))
             #self.update()
 
-
     def mouseReleaseEvent(self, QMouseEvent):
         self.update()
-
 
     def _selection_rects(self, start_pos, end_pos):
         sx, sy = start_pos.x(), start_pos.y()
@@ -444,7 +439,6 @@ class TerminalWidget(QtWidgets.QWidget):
              (0, end_row - 1, end_col, end_row)
              ]
 
-             
     def text(self, rect=None):
         if rect is None:
             return "\n".join(self._text)
@@ -455,7 +449,6 @@ class TerminalWidget(QtWidgets.QWidget):
                 text.append(self._text[row][start_col:end_col])
             return text
 
-        
     def text_selection(self):
         text = []
         for (start_col, start_row, end_col, end_row) in self._selection:
@@ -463,15 +456,12 @@ class TerminalWidget(QtWidgets.QWidget):
                 text.append(self._text[row][start_col:end_col])
         return "\n".join(text)
 
-    
     def column_count(self):
         return self._columns
-    
     
     def row_count(self):
         return self._rows
     
-
     def mouseMoveEvent(self, event):
         if self._press_pos:
             move_pos = event.pos()
@@ -484,8 +474,6 @@ class TerminalWidget(QtWidgets.QWidget):
             
             self.update()
 
-
-        
     def mouseDoubleClickEvent(self, event):
         self._press_pos = None
         # double clicks create a selection for the word under the cursor
@@ -520,6 +508,5 @@ class TerminalWidget(QtWidgets.QWidget):
 
         self.update()
 
-        
     def is_alive(self):
         return self.session and self.session.is_alive()
