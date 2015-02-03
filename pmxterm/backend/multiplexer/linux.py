@@ -100,8 +100,12 @@ class Multiplexer(base.Multiplexer):
         self.signal_stop = 1
         self.thread.join()
 
+    def _command(self, name, channel, **kwargs):
+        kwargs.update({'cmd': name, 'channel': channel})
+        self.queue.put(kwargs)
+
     def setup_channel(self, client, address):
-        self.queue.put({'cmd': 'setup_channel', 'id': client, 'address': address})
+        self._command('setup_channel', client, address=address)
 
     def proc_resize(self, sid, w, h):
         fd = self.session[sid]['fd']
@@ -202,13 +206,11 @@ class Multiplexer(base.Multiplexer):
             try:
                 os.kill(self.session[sid]['pid'], signal.SIGTERM)
                 for _client in self.session[sid]['clients']:
-                    self.queue.put({ 
-                        'cmd': 'send',
-                        'channel': _client,
-                        'payload': {
+                    self._command('send', _client, 
+                        payload={
                             'sid': sid, 
-                            'state': 'dead'} 
-                    })
+                            'state': 'dead'}
+                    )
             except (IOError, OSError):
                 pass
         self.proc_waitfordeath(sid)
@@ -219,7 +221,7 @@ class Multiplexer(base.Multiplexer):
     def proc_buryall(self, client):
         for sid in list(self.session.keys()):
             self.proc_bury(client, sid)
-        self.queue.put({ 'cmd': 'buried_all', 'channel': client })
+        self._command('buried_all', client)
 
     @synchronized
     def proc_read(self, sid):
@@ -313,27 +315,22 @@ class Multiplexer(base.Multiplexer):
                 if self.proc_read(sid) and sid in self.session:
                     self.session[sid]["changed"] = time.time()
                     for client in self.session[sid]['clients']: 
-                        self.queue.put({
-                            'cmd': 'send',
-                            'channel': client,
-                            'payload': { 
+                        self._command('send', client,
+                            payload={ 
                                 'sid': sid, 
                                 'state': 'alive', 
-                                'screen': self.proc_dump(client, sid) 
-                            }
-                        })
+                                'screen': self.proc_dump(client, sid)}
+                        )
         self.proc_buryall()
 
-    def is_session_alive(self, client, sid):
-        return self.session.get(sid, {}).get('state') == 'alive'
-    
-    def last_session_change(self, client, sid):
-        return self.session.get(sid, {}).get("changed", None)
-
-    def session_pid(self, client, sid):
-        return self.session.get(sid, {}).get("pid", None)
-
     def session_info(self, client, sid):
-        pid = self.session_pid(sid)
-        self.processInfo.update()
-        return self.processInfo.info(pid)
+        if sid in self.session:
+            s = self.session[sid]
+            pid = s["pid"]
+            self.processInfo.update()
+            info = self.processInfo.info(pid)
+            info['changed'] = s.get("changed", None)
+            info['clients'] = len(s["clients"])
+            info['state'] = s["state"]
+            self._command('send', client, payload=info) 
+            

@@ -51,7 +51,7 @@ def worker_notifier(queue_notifier):
         elif message['cmd'] == 'setup_channel':
             s = socket.socket(socket.AF_UNIX)
             s.connect(message['address'])
-            channels[message['id']] = s
+            channels[message['channel']] = s
             
 def worker_client(queue_multiplexer, queue_notifier, sock):
     global shutdown
