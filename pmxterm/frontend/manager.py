@@ -67,6 +67,10 @@ class Backend(QtCore.QObject):
         
     def setAddress(self, address):
         self._address = address
+        if address.startswith('/'):
+            self.setProtocol('unix')
+        else:
+            self.setProtocol('inet')
 
     def address(self):
         return self._address
@@ -80,7 +84,9 @@ class Backend(QtCore.QObject):
         else:
             self.notifier = QtNetwork.QTcpServer(self)
             self.notifier.listen()
-            address = self.notifier.serverAddress()
+            address = "%s:%d" % (
+                self.notifier.serverAddress().toString(), self.notifier.serverPort()
+            )
         self.notifier.newConnection.connect(self.on_notifier_newConnection)
         return address
 
@@ -90,7 +96,8 @@ class Backend(QtCore.QObject):
             self.multiplexer.connectToServer(address, QtCore.QIODevice.WriteOnly)
         else:
             self.multiplexer = QtNetwork.QTcpSocket(self)
-            self.multiplexer.connectToServer(address, QtCore.QIODevice.WriteOnly)
+            address, port = address.split(':')
+            self.multiplexer.connectToHost(address, int(port), QtCore.QIODevice.WriteOnly)
         
     def execute(self, command, args=None):
         if not isinstance(args, (tuple, list)):
@@ -140,34 +147,33 @@ class LocalBackend(Backend):
         if self.address() is not None:
             args.extend(["-a", self.address()])
 
-        self.process.readyReadStandardError.connect(self.backend_start_readyReadStandardError)
-        self.process.readyReadStandardOutput.connect(self.backend_start_readyReadStandardOutput)
+        def backend_start_readyReadStandardOutput():
+            connection = encoding.from_fs(self.process.readAllStandardOutput()).splitlines()[1]
+            connection = json.loads(connection)
+            self.setAddress(connection['address'])
+            self.process.readyReadStandardError.disconnect(backend_start_readyReadStandardError)
+            self.process.readyReadStandardOutput.disconnect(backend_start_readyReadStandardOutput)
+            self.process.readyReadStandardError.connect(self.backend_readyReadStandardError)
+            self.process.readyReadStandardOutput.connect(self.backend_readyReadStandardOutput)
+            self.process.finished.connect(self.backend_finished)
+            self.process.error.connect(self.backend_error)
+            super(LocalBackend, self).start()
+    
+        def backend_start_readyReadStandardError():
+            print(encoding.from_fs(self.process.readAllStandardError()))
+            self.process.readyReadStandardError.disconnect(backend_start_readyReadStandardError)
+            self.process.readyReadStandardOutput.disconnect(backend_start_readyReadStandardOutput)
+            self.error.emit(self.ReadError)
+            self.finished.emit(-1)
+            
+        self.process.readyReadStandardError.connect(backend_start_readyReadStandardError)
+        self.process.readyReadStandardOutput.connect(backend_start_readyReadStandardOutput)
         self.process.start(sys.executable, args)
 
     def stop(self):
         Backend.stop(self)
         os.kill(self.process.pid(), signal.SIGTERM)
         self.process.waitForFinished()
-
-    #------------ Process Start Signal
-    def backend_start_readyReadStandardOutput(self):
-        connection = encoding.from_fs(self.process.readAllStandardOutput()).splitlines()[1]
-        connection = json.loads(connection)
-        self.setAddress(connection['address'])
-        self.process.readyReadStandardError.disconnect(self.backend_start_readyReadStandardError)
-        self.process.readyReadStandardOutput.disconnect(self.backend_start_readyReadStandardOutput)
-        self.process.readyReadStandardError.connect(self.backend_readyReadStandardError)
-        self.process.readyReadStandardOutput.connect(self.backend_readyReadStandardOutput)
-        self.process.finished.connect(self.backend_finished)
-        self.process.error.connect(self.backend_error)
-        self.start()
-
-    def backend_start_readyReadStandardError(self):
-        print(encoding.from_fs(self.process.readAllStandardError()))
-        self.process.readyReadStandardError.disconnect(self.backend_start_readyReadStandardError)
-        self.process.readyReadStandardOutput.disconnect(self.backend_start_readyReadStandardOutput)
-        self.error.emit(self.ReadError)
-        self.finished.emit(-1)
 
     #------------ Process Normal Signals
     def backend_finished(self):
